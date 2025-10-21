@@ -190,6 +190,7 @@ namespace Surge.Tests.Unit
             // StrictDuration should stop within reasonable time (duration + grace period + buffer)
             Assert.True(actualDuration.TotalSeconds <= 6.0); // Should be close to 3s + 1s grace + 2s buffer
             Assert.True(result.Total >= 30); // Should get at least 30 requests (3 intervals × 10)
+            Assert.True(result.Total <= 50); // Should not exceed 50 requests (allow for timing variance)
             Assert.Equal(result.Total, requestCount);
         }
 
