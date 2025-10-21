@@ -53,15 +53,7 @@ jobs:
       run: dotnet build --configuration ${{ matrix.configuration }} --no-restore --verbosity normal
 
     - name: Run tests
-      run: |
-        dotnet test \
-          --configuration ${{ matrix.configuration }} \
-          --no-build \
-          --verbosity normal \
-          --logger trx \
-          --logger "console;verbosity=detailed" \
-          --collect:"XPlat Code Coverage" \
-          --results-directory TestResults
+      run: dotnet test --configuration ${{ matrix.configuration }} --no-build --verbosity normal --logger trx --logger "console;verbosity=detailed" --collect:"XPlat Code Coverage" --results-directory TestResults
 
     - name: Upload test results
       uses: actions/upload-artifact@v4
@@ -125,11 +117,7 @@ jobs:
 
     - name: Push to NuGet
       if: github.event_name == 'release'
-      run: |
-        dotnet nuget push ./artifacts/*.nupkg \
-          --api-key ${{ secrets.NUGET_API_KEY }} \
-          --source https://api.nuget.org/v3/index.json \
-          --skip-duplicate
+      run: dotnet nuget push ./artifacts/*.nupkg --api-key ${{ secrets.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
 
   security-scan:
     runs-on: ubuntu-latest
