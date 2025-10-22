@@ -94,6 +94,12 @@ jobs:
         echo "VERSION=$VERSION" >> $GITHUB_ENV
         echo "Version set to: $VERSION"
 
+    - name: Update .csproj with Version
+      run: |
+        sed -i 's|<Version>.*</Version>|<Version>${{ env.VERSION }}</Version>|' src/LoadSurge/LoadSurge.csproj
+        sed -i 's|<PackageReleaseNotes>.*</PackageReleaseNotes>|<PackageReleaseNotes>Version ${{ env.VERSION }} - Automated build from commit ${{ github.sha }}</PackageReleaseNotes>|' src/LoadSurge/LoadSurge.csproj
+        echo "Updated version in .csproj to: ${{ env.VERSION }}"
+
     - name: Restore dependencies
       run: dotnet restore
 
