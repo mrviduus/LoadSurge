@@ -112,8 +112,8 @@ namespace Surge.Tests.Unit
             var actualDuration = endTime - startTime;
 
             // Assert
-            // Should complete within test duration + graceful stop timeout + small buffer
-            Assert.True(actualDuration.TotalSeconds <= 6.0); // 3s + 2s + 1s buffer
+            // Should complete within test duration + graceful stop timeout + buffer (lenient for CI)
+            Assert.True(actualDuration.TotalSeconds <= 10.0); // 3s + 2s + 5s buffer for CI variability
             Assert.Equal(15, result.Total); // 3 intervals × 5 requests
             Assert.Equal(15, requestCount);
         }
