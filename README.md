@@ -1,24 +1,39 @@
-# LoadSurge
+<div align="center">
+
+# ⚡ LoadSurge
 
 **High-performance, actor-based load testing framework for .NET**
 
-[![NuGet](https://img.shields.io/nuget/v/LoadSurge.svg)](https://www.nuget.org/packages/LoadSurge)
-[![.NET 8](https://img.shields.io/badge/.NET-8.0-purple)](https://dotnet.microsoft.com/download/dotnet/8.0)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![GitHub](https://img.shields.io/badge/GitHub-LoadSurge-blue)](https://github.com/mrviduus/LoadSurge)
+[![NuGet](https://img.shields.io/nuget/v/LoadSurge.svg?style=flat-square)](https://www.nuget.org/packages/LoadSurge)
+[![NuGet Downloads](https://img.shields.io/nuget/dt/LoadSurge.svg?style=flat-square)](https://www.nuget.org/packages/LoadSurge)
+[![.NET 8](https://img.shields.io/badge/.NET-8.0-purple?style=flat-square)](https://dotnet.microsoft.com/download/dotnet/8.0)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](LICENSE)
+[![GitHub Stars](https://img.shields.io/github/stars/mrviduus/LoadSurge?style=flat-square)](https://github.com/mrviduus/LoadSurge/stargazers)
 
-LoadSurge is a framework-agnostic load testing engine built on Akka.NET actors for distributed, fault-tolerant load testing. Born from [xUnitV3LoadFramework](https://github.com/mrviduus/xUnitV3LoadFramework), LoadSurge provides the core load testing capabilities that can be integrated with any testing framework or used standalone.
+*Unleash the power of distributed load testing with battle-tested Akka.NET actors*
 
-## Features
+[Features](#-features) • [Quick Start](#-quick-start) • [Documentation](#-architecture) • [Examples](#-advanced-examples)
 
-- **Actor-Based Architecture** - Built on battle-tested Akka.NET for distributed, fault-tolerant execution
-- **High Performance** - Hybrid mode supports 100,000+ concurrent operations using channels and fixed thread pools
-- **Framework Agnostic** - Use with xUnit, NUnit, MSTest, or standalone in console applications
-- **Precise Control** - Three termination modes for exact request count control
-- **Graceful Shutdown** - Configurable grace periods for in-flight request completion
-- **Comprehensive Metrics** - Detailed latency percentiles, throughput, and resource utilization
+</div>
 
-## Quick Start
+---
+
+## 📖 Overview
+
+LoadSurge is a **framework-agnostic load testing engine** built on Akka.NET actors for distributed, fault-tolerant load testing. Born from [xUnitV3LoadFramework](https://github.com/mrviduus/xUnitV3LoadFramework), LoadSurge provides the core load testing capabilities that can be integrated with **any testing framework** or used standalone.
+
+Perfect for testing APIs, microservices, databases, and distributed systems under extreme load.
+
+## ✨ Features
+
+- 🎭 **Actor-Based Architecture** - Built on battle-tested Akka.NET for distributed, fault-tolerant execution
+- 🚀 **High Performance** - Hybrid mode supports **100,000+ concurrent operations** using channels and fixed thread pools
+- 🔧 **Framework Agnostic** - Use with xUnit, NUnit, MSTest, or standalone in console applications
+- 🎯 **Precise Control** - Three termination modes for exact request count control
+- 💫 **Graceful Shutdown** - Configurable grace periods for in-flight request completion
+- 📊 **Comprehensive Metrics** - Detailed latency percentiles, throughput, and resource utilization
+
+## 🚀 Quick Start
 
 ### Installation
 
@@ -27,6 +42,8 @@ dotnet add package LoadSurge
 ```
 
 ### Basic Usage
+
+Get started with a simple load test in just a few lines:
 
 ```csharp
 using LoadSurge.Models;
@@ -50,14 +67,14 @@ var plan = new LoadExecutionPlan
 
 var result = await LoadRunner.Run(plan);
 
-Console.WriteLine($"Total Requests: {result.TotalRequests}");
-Console.WriteLine($"Success Rate: {result.Success}/{result.TotalRequests}");
-Console.WriteLine($"Requests/sec: {result.RequestsPerSecond:F1}");
-Console.WriteLine($"Avg Latency: {result.AverageLatency:F2}ms");
-Console.WriteLine($"P95 Latency: {result.Percentile95Latency:F2}ms");
+Console.WriteLine($"✅ Total Requests: {result.TotalRequests}");
+Console.WriteLine($"📈 Success Rate: {result.Success}/{result.TotalRequests} ({result.Success * 100.0 / result.TotalRequests:F1}%)");
+Console.WriteLine($"⚡ Throughput: {result.RequestsPerSecond:F1} req/sec");
+Console.WriteLine($"⏱️  Avg Latency: {result.AverageLatency:F2}ms");
+Console.WriteLine($"📊 P95 Latency: {result.Percentile95Latency:F2}ms");
 ```
 
-## Architecture
+## 📚 Architecture
 
 ### Core Components
 
@@ -113,7 +130,7 @@ Settings = new LoadSettings
 
 If not specified, automatically calculated as 30% of duration (min: 5s, max: 60s).
 
-## Advanced Examples
+## 💡 Advanced Examples
 
 ### Database Load Testing
 
@@ -188,7 +205,7 @@ Console.WriteLine($"Latency - Min: {result.MinLatency:F2}ms, Avg: {result.Averag
 Console.WriteLine($"Latency - P50: {result.MedianLatency:F2}ms, P95: {result.Percentile95Latency:F2}ms, P99: {result.Percentile99Latency:F2}ms");
 ```
 
-## Performance Metrics
+## 📊 Performance Metrics
 
 LoadSurge provides comprehensive performance data:
 
@@ -218,7 +235,7 @@ public class LoadResult
 }
 ```
 
-## Integration with Test Frameworks
+## 🔗 Integration with Test Frameworks
 
 ### xUnit v3
 
@@ -240,40 +257,46 @@ public async Task Load_Test_API_Endpoint()
 }
 ```
 
-## Why LoadSurge?
+## 🤔 Why LoadSurge?
 
-**vs NBomber:**
-- LoadSurge uses proven Akka.NET actors for distribution and fault tolerance
-- Simpler API focused on common load testing scenarios
-- Tighter integration with .NET testing frameworks
+### vs NBomber
+- ✅ Proven Akka.NET actors for distribution and fault tolerance
+- ✅ Simpler API focused on common load testing scenarios
+- ✅ Tighter integration with .NET testing frameworks
 
-**vs k6/Gatling:**
-- Native .NET - reuse your existing C# code and libraries
-- Framework-agnostic design for flexibility
-- Full control over test logic with C# async/await
+### vs k6/Gatling
+- ✅ Native .NET - reuse your existing C# code and libraries
+- ✅ Framework-agnostic design for flexibility
+- ✅ Full control over test logic with C# async/await
 
-**vs Custom Solutions:**
-- Production-ready with comprehensive error handling
-- Proven actor model for scalability
-- Detailed metrics out of the box
+### vs Custom Solutions
+- ✅ Production-ready with comprehensive error handling
+- ✅ Proven actor model for scalability
+- ✅ Detailed metrics out of the box
 
-## Requirements
+## ⚙️ Requirements
 
 - .NET 8.0 or later
 - Akka.NET 1.5.54
 
-## Contributing
+## 🤝 Contributing
 
 Contributions are welcome! Please submit issues and pull requests on [GitHub](https://github.com/mrviduus/LoadSurge).
 
-## License
+## 📄 License
 
 MIT License - see [LICENSE](LICENSE) file for details.
 
-## Acknowledgments
+## 🙏 Acknowledgments
 
 LoadSurge is extracted from [xUnitV3LoadFramework](https://github.com/mrviduus/xUnitV3LoadFramework) to provide a framework-agnostic core that can be used across different testing frameworks and scenarios.
 
 ---
 
+<div align="center">
+
 **Built with ❤️ by [Vasyl Vdovychenko](https://github.com/mrviduus)**
+
+⭐ Star this repo if you find it useful!
+
+</div>
