@@ -5,6 +5,20 @@ All notable changes to the LoadSurge project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2025-10-22
+
+### Added
+- CLAUDE.md file with comprehensive codebase guidance for Claude Code AI assistant
+
+### Changed
+- Updated all documentation references from "Surge" to "LoadSurge"
+- Improved README.md with correct NuGet package links and GitHub repository URL
+- Updated CHANGELOG.md and PROGRESS.md to reference LoadSurge consistently
+
+### Fixed
+- Corrected NuGet badge to point to LoadSurge package
+- Fixed xUnit integration references in documentation
+
 ## [1.0.0] - 2025-10-21
 
 ### Added

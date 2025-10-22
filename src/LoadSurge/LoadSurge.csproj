@@ -8,7 +8,7 @@
 
     <!-- Package Metadata -->
     <PackageId>LoadSurge</PackageId>
-    <Version>1.0.0</Version>
+    <Version>1.0.1</Version>
     <Authors>Vasyl Vdovychenko</Authors>
     <Company>Vasyl Vdovychenko</Company>
     <Product>LoadSurge</Product>
@@ -20,7 +20,7 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>icon.png</PackageIcon>
-    <PackageReleaseNotes>Version 1.0.0: Initial release of LoadSurge - Actor-based load testing framework extracted from xUnitV3LoadFramework. Provides framework-agnostic load testing engine with Akka.NET actors, hybrid execution mode, and comprehensive performance metrics.</PackageReleaseNotes>
+    <PackageReleaseNotes>Version 1.0.1: Documentation updates - Updated all references from Surge to LoadSurge, added CLAUDE.md for AI assistant guidance, improved README with correct NuGet and GitHub links.</PackageReleaseNotes>
 
     <!-- Build Settings -->
     <IsPackable>true</IsPackable>
