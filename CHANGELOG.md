@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to the Surge project will be documented in this file.
+All notable changes to the LoadSurge project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.0] - 2025-10-21
 
 ### Added
-- Initial release of Surge as a standalone, framework-agnostic load testing engine
+- Initial release of LoadSurge as a standalone, framework-agnostic load testing engine
 - Extracted core functionality from xUnitV3LoadFramework v2.0.0
 - Actor-based architecture using Akka.NET 1.5.54
 - LoadRunner for orchestrating load test execution
@@ -28,8 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Full XML documentation for all public APIs
 
 ### Changed
-- Namespace migration from `xUnitV3LoadFramework.LoadRunnerCore.*` to `Surge.*`
-- Updated all internal references to use new Surge namespaces
+- Namespace migration from `xUnitV3LoadFramework.LoadRunnerCore.*` to `LoadSurge.*`
+- Updated all internal references to use new LoadSurge namespaces
 
 ### Technical Details
 - Target Framework: .NET 8.0
@@ -38,14 +38,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Akka.NET 1.5.54
   - Microsoft.SourceLink.GitHub 8.0.0 (build-time)
 - Package Structure:
-  - Surge (core package)
-  - Surge.Tests (test project)
+  - LoadSurge (core package)
+  - LoadSurge.Tests (test project)
 
 ### Migration Notes
 For users migrating from xUnitV3LoadFramework v2.x:
-- The core load testing engine is now available as the `Surge` package
-- xUnit-specific features (LoadAttribute, LoadTestRunner) are moving to `Surge.xUnit` package
-- Direct LoadRunner users: Update `using xUnitV3LoadFramework.LoadRunnerCore.*` to `using Surge.*`
+- The core load testing engine is now available as the `LoadSurge` package
+- xUnit-specific features (LoadAttribute, LoadTestRunner) remain in the xUnitV3LoadFramework package
+- Direct LoadRunner users: Update `using xUnitV3LoadFramework.LoadRunnerCore.*` to `using LoadSurge.*`
 - See PROGRESS.md for detailed migration information
 
 ## Future Releases
@@ -64,4 +64,4 @@ For users migrating from xUnitV3LoadFramework v2.x:
 
 ---
 
-For integration with xUnit v3, see [Surge.xUnit](https://github.com/mrviduus/xUnitV3LoadFramework)
+For integration with xUnit v3, see [xUnitV3LoadFramework](https://github.com/mrviduus/xUnitV3LoadFramework)

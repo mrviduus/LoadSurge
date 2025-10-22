@@ -1,13 +1,13 @@
-# Surge - Extraction Progress Documentation
+# LoadSurge - Extraction Progress Documentation
 
-This document tracks the progress of extracting the core load testing engine from xUnitV3LoadFramework into the standalone Surge package.
+This document tracks the progress of extracting the core load testing engine from xUnitV3LoadFramework into the standalone LoadSurge package.
 
 ## Project Overview
 
-**Goal:** Extract the framework-agnostic LoadRunnerCore from xUnitV3LoadFramework into a standalone NuGet package named "Surge", enabling use with any testing framework or standalone applications.
+**Goal:** Extract the framework-agnostic LoadRunnerCore from xUnitV3LoadFramework into a standalone NuGet package named "LoadSurge", enabling use with any testing framework or standalone applications.
 
 **Source:** [xUnitV3LoadFramework](https://github.com/mrviduus/xUnitV3LoadFramework) v2.0.0
-**Target:** Surge v1.0.0 (new standalone package)
+**Target:** LoadSurge v1.0.0 (new standalone package)
 **Date:** October 21, 2025
 
 ---
@@ -15,16 +15,14 @@ This document tracks the progress of extracting the core load testing engine fro
 ## Completed Tasks ✅
 
 ### Phase 1: Repository Setup & Structure
-- [x] Created Surge repository directory structure
-  - `src/Surge/` - Core package source
-  - `tests/Surge.Tests/` - Test project
+- [x] Created LoadSurge repository directory structure
+  - `src/LoadSurge/` - Core package source
+  - `tests/LoadSurge.Tests/` - Test project
   - `.github/workflows/` - CI/CD pipelines
-  - `docs/` - Documentation
-  - `examples/` - Example projects (placeholder)
 
 - [x] Created project configuration files
-  - `Surge.csproj` - Package project with metadata
-  - `Surge.sln` - Solution file
+  - `LoadSurge.csproj` - Package project with metadata
+  - `LoadSurge.sln` - Solution file
   - `Directory.Packages.props` - Central package management
   - `global.json` - .NET SDK version (8.0.100)
   - `.gitignore` - Standard .NET exclusions
@@ -54,15 +52,15 @@ This document tracks the progress of extracting the core load testing engine fro
 
 - [x] Performed namespace migration
   - From: `xUnitV3LoadFramework.LoadRunnerCore.*`
-  - To: `Surge.*`
+  - To: `LoadSurge.*`
   - Updated all `using` statements
   - Updated all `namespace` declarations
   - Verified no remaining old namespace references
 
 ### Phase 3: Testing
-- [x] Created Surge.Tests project
+- [x] Created LoadSurge.Tests project
   - Configured xUnit v3.0.0
-  - Referenced Surge project
+  - Referenced LoadSurge project
   - Targeted .NET 8.0
 
 - [x] Migrated core unit tests (5 test files)
@@ -74,7 +72,7 @@ This document tracks the progress of extracting the core load testing engine fro
 
 - [x] Updated test namespaces
   - From: `xUnitV3LoadFrameworkTests.*`
-  - To: `Surge.Tests.*`
+  - To: `LoadSurge.Tests.*`
 
 - [x] Verified build success
   - **Status:** ✅ Build successful (0 errors, 2 warnings)
@@ -122,24 +120,15 @@ This document tracks the progress of extracting the core load testing engine fro
 - [ ] Configure repository settings
 - [ ] Add NuGet API key to GitHub secrets
 
-### Phase 6: xUnit Integration Migration (Separate Project)
-- [ ] Rename xUnitV3LoadFramework → Surge.xUnit
-- [ ] Update Surge.xUnit to depend on Surge package
-- [ ] Migrate xUnit-specific code:
-  - `Attributes/LoadAttribute.cs`
-  - `Extensions/LoadTestRunner.cs`
-- [ ] Update namespaces in xUnit integration
-- [ ] Remove LoadRunnerCore from xUnit project
-- [ ] Create MIGRATION.md guide for users
-- [ ] Test Surge.xUnit with Surge package
-- [ ] Update xUnitV3LoadFramework README
+### Phase 6: xUnit Integration (Separate Project - Not Required)
+- Note: xUnit-specific features remain in xUnitV3LoadFramework
+- Users can use LoadSurge directly or through xUnitV3LoadFramework
 
 ### Phase 7: Publishing
-- [ ] Publish Surge 1.0.0 to NuGet
-- [ ] Verify package availability
-- [ ] Publish Surge.xUnit 3.0.0 to NuGet
-- [ ] Deprecate xUnitV3LoadFramework 2.x
-- [ ] Announce release
+- [x] Publish LoadSurge 1.0.0 to NuGet
+- [x] Verify package availability
+- [x] Published to GitHub
+- [x] Announce release
 
 ---
 
@@ -147,8 +136,8 @@ This document tracks the progress of extracting the core load testing engine fro
 
 ### Package Configuration
 
-**Surge.csproj:**
-- **Package ID:** Surge
+**LoadSurge.csproj:**
+- **Package ID:** LoadSurge
 - **Version:** 1.0.0
 - **Target Framework:** net8.0
 - **Language Version:** C# 12
@@ -168,14 +157,14 @@ This document tracks the progress of extracting the core load testing engine fro
 
 ```
 Build succeeded.
-  Surge -> /Users/vasylvdovychenko/projects/xUnitLoad/surge/src/Surge/bin/Release/net8.0/Surge.dll
-  Surge.Tests -> /Users/vasylvdovychenko/projects/xUnitLoad/surge/tests/Surge.Tests/bin/Release/net8.0/Surge.Tests.dll
+  LoadSurge -> bin/Release/net8.0/LoadSurge.dll
+  LoadSurge.Tests -> bin/Release/net8.0/LoadSurge.Tests.dll
 
-Warnings: 2 (git repository, SourceLink - expected)
+Warnings: 0
 Errors: 0
 ```
 
-### Tests Included in Surge
+### Tests Included in LoadSurge
 
 **Unit Tests (Core functionality, no xUnit dependencies):**
 1. HybridModeTests - 6 tests
@@ -184,7 +173,7 @@ Errors: 0
 4. GracefulStopConfigurationTests - Shutdown behavior tests
 5. BackwardCompatibilityTests - Compatibility validation
 
-**Excluded (xUnit-specific, staying in Surge.xUnit):**
+**Excluded (xUnit-specific, staying in xUnitV3LoadFramework):**
 - LoadAttributeTests
 - LoadTestRunnerTests
 - MixedTestingScenarios
@@ -199,29 +188,29 @@ Errors: 0
 **Reason:** C# 11 `required` keyword used in models; maintaining compatibility would require removing modern language features
 **Impact:** Cleaner codebase, modern features, smaller surface area
 
-### 2. Package Name: "Surge"
-**Decision:** Name the package "Surge" instead of "LoadRunner.Core" or similar
+### 2. Package Name: "LoadSurge"
+**Decision:** Name the package "LoadSurge" instead of "Surge" or "LoadRunner.Core"
 **Reason:**
-- Short, memorable, impactful
-- Implies: traffic surges, load spikes
+- Descriptive and clear about purpose
+- Implies: load testing with traffic surges
 - Good SEO for load testing
-- Differentiates from HP LoadRunner
-- Sets up branding for ecosystem (Surge.xUnit, Surge.NUnit, etc.)
+- Differentiates from HP LoadRunner and other tools
+- Professional naming for enterprise use
 
-### 3. Namespace: `Surge.*`
-**Decision:** Use `Surge.*` instead of `Surge.Core.*` or `Surge.LoadRunner.*`
+### 3. Namespace: `LoadSurge.*`
+**Decision:** Use `LoadSurge.*` to match the package name
 **Reason:**
-- Simpler, cleaner
 - Package name matches root namespace
+- Clear and descriptive
 - Less verbose using statements
 - Standard .NET convention
 
 ### 4. Test Migration Strategy
 **Decision:** Only migrate tests that don't depend on xUnit-specific features
 **Reason:**
-- Keeps Surge truly framework-agnostic
+- Keeps LoadSurge truly framework-agnostic
 - Tests validate core functionality
-- xUnit-specific tests stay with Surge.xUnit
+- xUnit-specific tests stay with xUnitV3LoadFramework
 
 ### 5. Documentation Structure
 **Decision:** Comprehensive README with examples, separate CHANGELOG and PROGRESS
@@ -236,24 +225,23 @@ Errors: 0
 
 | Old Namespace | New Namespace |
 |---------------|---------------|
-| `xUnitV3LoadFramework.LoadRunnerCore.Actors` | `Surge.Actors` |
-| `xUnitV3LoadFramework.LoadRunnerCore.Configuration` | `Surge.Configuration` |
-| `xUnitV3LoadFramework.LoadRunnerCore.Messages` | `Surge.Messages` |
-| `xUnitV3LoadFramework.LoadRunnerCore.Models` | `Surge.Models` |
-| `xUnitV3LoadFramework.LoadRunnerCore.Runner` | `Surge.Runner` |
+| `xUnitV3LoadFramework.LoadRunnerCore.Actors` | `LoadSurge.Actors` |
+| `xUnitV3LoadFramework.LoadRunnerCore.Configuration` | `LoadSurge.Configuration` |
+| `xUnitV3LoadFramework.LoadRunnerCore.Messages` | `LoadSurge.Messages` |
+| `xUnitV3LoadFramework.LoadRunnerCore.Models` | `LoadSurge.Models` |
+| `xUnitV3LoadFramework.LoadRunnerCore.Runner` | `LoadSurge.Runner` |
 
 ---
 
 ## Success Criteria
 
-- [x] Surge package builds without errors
+- [x] LoadSurge package builds without errors
 - [x] All migrated tests pass
 - [x] Zero dependencies except Akka.NET
 - [x] Comprehensive documentation
 - [x] CI/CD pipeline configured
-- [ ] Published to NuGet
-- [ ] GitHub repository live
-- [ ] Surge.xUnit successfully depends on Surge
+- [x] Published to NuGet
+- [x] GitHub repository live
 
 ---
 
@@ -274,7 +262,7 @@ Errors: 0
    - Resolution: Replaced with "less than" and "greater than" text
 
 3. **Test Framework Dependency:** HighLoadPerformanceTests uses LoadAttribute
-   - Resolution: Excluded from core tests, stays with Surge.xUnit
+   - Resolution: Excluded from core tests, stays with xUnitV3LoadFramework
 
 ### Improvements for Future
 - Consider multi-targeting (net6.0+) if community needs it

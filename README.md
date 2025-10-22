@@ -2,11 +2,12 @@
 
 **High-performance, actor-based load testing framework for .NET**
 
-[![NuGet](https://img.shields.io/nuget/v/Surge.svg)](https://www.nuget.org/packages/Surge)
+[![NuGet](https://img.shields.io/nuget/v/LoadSurge.svg)](https://www.nuget.org/packages/LoadSurge)
 [![.NET 8](https://img.shields.io/badge/.NET-8.0-purple)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![GitHub](https://img.shields.io/badge/GitHub-LoadSurge-blue)](https://github.com/mrviduus/LoadSurge)
 
-LoadSurge is a framework-agnostic load testing engine built on Akka.NET actors for distributed, fault-tolerant load testing. Born from [xUnitV3LoadFramework](https://github.com/mrviduus/xUnitV3LoadFramework), Surge provides the core load testing capabilities that can be integrated with any testing framework or used standalone.
+LoadSurge is a framework-agnostic load testing engine built on Akka.NET actors for distributed, fault-tolerant load testing. Born from [xUnitV3LoadFramework](https://github.com/mrviduus/xUnitV3LoadFramework), LoadSurge provides the core load testing capabilities that can be integrated with any testing framework or used standalone.
 
 ## Features
 
@@ -22,7 +23,7 @@ LoadSurge is a framework-agnostic load testing engine built on Akka.NET actors f
 ### Installation
 
 ```bash
-dotnet add package Surge
+dotnet add package LoadSurge
 ```
 
 ### Basic Usage
@@ -189,7 +190,7 @@ Console.WriteLine($"Latency - P50: {result.MedianLatency:F2}ms, P95: {result.Per
 
 ## Performance Metrics
 
-Surge provides comprehensive performance data:
+LoadSurge provides comprehensive performance data:
 
 ```csharp
 public class LoadResult
@@ -221,11 +222,11 @@ public class LoadResult
 
 ### xUnit v3
 
-Use [Surge.xUnit](https://github.com/mrviduus/xUnitV3LoadFramework) for seamless xUnit integration with attributes and fluent API.
+Use [xUnitV3LoadFramework](https://github.com/mrviduus/xUnitV3LoadFramework) for seamless xUnit integration with attributes and fluent API.
 
 ### NUnit / MSTest
 
-Use Surge directly in your test methods:
+Use LoadSurge directly in your test methods:
 
 ```csharp
 [Test]  // NUnit
@@ -239,10 +240,10 @@ public async Task Load_Test_API_Endpoint()
 }
 ```
 
-## Why Surge?
+## Why LoadSurge?
 
 **vs NBomber:**
-- Surge uses proven Akka.NET actors for distribution and fault tolerance
+- LoadSurge uses proven Akka.NET actors for distribution and fault tolerance
 - Simpler API focused on common load testing scenarios
 - Tighter integration with .NET testing frameworks
 
@@ -263,7 +264,7 @@ public async Task Load_Test_API_Endpoint()
 
 ## Contributing
 
-Contributions are welcome! Please see [xUnitV3LoadFramework](https://github.com/mrviduus/xUnitV3LoadFramework) for the parent project.
+Contributions are welcome! Please submit issues and pull requests on [GitHub](https://github.com/mrviduus/LoadSurge).
 
 ## License
 
