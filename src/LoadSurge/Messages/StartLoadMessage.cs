@@ -1,6 +1,6 @@
 // Define namespace for actor communication messages and coordination contracts
 // Contains all message types used for inter-actor communication during load testing
-namespace Surge.Messages
+namespace LoadSurge.Messages
 {
     /// <summary>
     /// Message sent to load worker actors to initiate load test execution.

@@ -1,4 +1,4 @@
-namespace Surge.Models
+namespace LoadSurge.Models
 {
 	/// <summary>
 	/// Comprehensive load test results containing performance metrics and statistics.

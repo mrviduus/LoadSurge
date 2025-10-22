@@ -1,4 +1,4 @@
-namespace Surge.Messages
+namespace LoadSurge.Messages
 {
     /// <summary>
     /// Message containing information about worker thread utilization.

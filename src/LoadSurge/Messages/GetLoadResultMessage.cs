@@ -1,4 +1,4 @@
-namespace Surge.Messages
+namespace LoadSurge.Messages
 {
     /// <summary>
     /// Message sent to result collector actors to request aggregated load test results.

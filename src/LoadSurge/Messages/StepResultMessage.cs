@@ -1,6 +1,6 @@
 // Define namespace for actor communication messages and performance data contracts
 // Contains all message types used for reporting test results and metrics
-namespace Surge.Messages
+namespace LoadSurge.Messages
 {
 	/// <summary>
 	/// Message containing the execution result of a single load test operation.

@@ -1,6 +1,6 @@
 // Define namespace for load testing data models and configuration structures
 // Contains all DTOs and data contracts used throughout the load testing framework
-namespace Surge.Models
+namespace LoadSurge.Models
 {
     /// <summary>
     /// Defines a complete load test execution plan containing test configuration and action.

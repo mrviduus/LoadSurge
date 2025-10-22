@@ -1,6 +1,6 @@
 // Define namespace for load testing configuration models and settings structures
 // Contains all configuration DTOs that control load test execution behavior
-namespace Surge.Models
+namespace LoadSurge.Models
 {
     /// <summary>
     /// Defines how the load test determines when to stop creating new batches.

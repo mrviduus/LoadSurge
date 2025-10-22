@@ -1,10 +1,10 @@
 using System;
 using System.Threading.Tasks;
 using Xunit;
-using Surge.Models;
-using Surge.Runner;
+using LoadSurge.Models;
+using LoadSurge.Runner;
 
-namespace Surge.Tests.Unit
+namespace LoadSurge.Tests.Unit
 {
     /// <summary>
     /// Tests to ensure backward compatibility when upgrading to new graceful stop features.

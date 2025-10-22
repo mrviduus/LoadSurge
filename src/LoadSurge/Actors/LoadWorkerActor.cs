@@ -9,13 +9,13 @@ using Akka.Actor;
 using Akka.Event;
 // Import message contracts for inter-actor communication during load testing
 // Defines all message types used for coordination and result reporting
-using Surge.Messages;
+using LoadSurge.Messages;
 // Import data models for load test configuration and result structures
 // Contains execution plans, settings, and result aggregation models
-using Surge.Models;
+using LoadSurge.Models;
 
 // Define namespace for load testing actor implementations
-namespace Surge.Actors
+namespace LoadSurge.Actors
 {
     /// <summary>
     /// Actor responsible for executing load tests using Task-based concurrent execution.

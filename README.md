@@ -1,4 +1,4 @@
-# Surge
+# LoadSurge
 
 **High-performance, actor-based load testing framework for .NET**
 
@@ -6,7 +6,7 @@
 [![.NET 8](https://img.shields.io/badge/.NET-8.0-purple)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-Surge is a framework-agnostic load testing engine built on Akka.NET actors for distributed, fault-tolerant load testing. Born from [xUnitV3LoadFramework](https://github.com/mrviduus/xUnitV3LoadFramework), Surge provides the core load testing capabilities that can be integrated with any testing framework or used standalone.
+LoadSurge is a framework-agnostic load testing engine built on Akka.NET actors for distributed, fault-tolerant load testing. Born from [xUnitV3LoadFramework](https://github.com/mrviduus/xUnitV3LoadFramework), Surge provides the core load testing capabilities that can be integrated with any testing framework or used standalone.
 
 ## Features
 
@@ -28,8 +28,8 @@ dotnet add package Surge
 ### Basic Usage
 
 ```csharp
-using Surge.Models;
-using Surge.Runner;
+using LoadSurge.Models;
+using LoadSurge.Runner;
 
 var plan = new LoadExecutionPlan
 {
@@ -271,7 +271,7 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ## Acknowledgments
 
-Surge is extracted from [xUnitV3LoadFramework](https://github.com/mrviduus/xUnitV3LoadFramework) to provide a framework-agnostic core that can be used across different testing frameworks and scenarios.
+LoadSurge is extracted from [xUnitV3LoadFramework](https://github.com/mrviduus/xUnitV3LoadFramework) to provide a framework-agnostic core that can be used across different testing frameworks and scenarios.
 
 ---
 

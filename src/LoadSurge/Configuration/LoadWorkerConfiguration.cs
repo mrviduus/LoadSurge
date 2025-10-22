@@ -1,6 +1,6 @@
 // Define namespace for load worker configuration and execution mode settings
 // Contains all configuration options that control worker behavior and performance characteristics
-namespace Surge.Configuration
+namespace LoadSurge.Configuration
 {
     /// <summary>
     /// Configuration settings that control load worker actor behavior and performance characteristics.

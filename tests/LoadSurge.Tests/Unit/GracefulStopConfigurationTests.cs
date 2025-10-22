@@ -1,11 +1,11 @@
 using System;
 using System.Threading.Tasks;
 using Xunit;
-using Surge.Models;
-using Surge.Runner;
-using Surge.Configuration;
+using LoadSurge.Models;
+using LoadSurge.Runner;
+using LoadSurge.Configuration;
 
-namespace Surge.Tests.Unit
+namespace LoadSurge.Tests.Unit
 {
     /// <summary>
     /// Tests for graceful stop timeout configuration functionality.

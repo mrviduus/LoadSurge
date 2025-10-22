@@ -1,4 +1,4 @@
-namespace Surge.Messages
+namespace LoadSurge.Messages
 {
     /// <summary>
     /// Message indicating that a batch of load test operations has completed execution.

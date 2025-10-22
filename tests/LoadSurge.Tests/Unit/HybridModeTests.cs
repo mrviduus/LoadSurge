@@ -2,10 +2,10 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
-using Surge.Models;
-using Surge.Runner;
+using LoadSurge.Models;
+using LoadSurge.Runner;
 
-namespace Surge.Tests.Unit
+namespace LoadSurge.Tests.Unit
 {
     /// <summary>
     /// Tests for the default hybrid mode behavior.

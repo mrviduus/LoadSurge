@@ -10,8 +10,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Reference to Surge project -->
-    <ProjectReference Include="../../src/Surge/Surge.csproj" />
+    <!-- Reference to LoadSurge project -->
+    <ProjectReference Include="../../src/LoadSurge/LoadSurge.csproj" />
   </ItemGroup>
 
   <ItemGroup>

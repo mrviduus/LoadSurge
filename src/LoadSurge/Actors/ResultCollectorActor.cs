@@ -6,13 +6,13 @@ using Akka.Actor;
 using Akka.Event;
 // Import message contracts for receiving performance data and coordination messages
 // Defines all message types used for result reporting and statistical aggregation
-using Surge.Messages;
+using LoadSurge.Messages;
 // Import data models for result structures and load test configuration
 // Contains DTOs for aggregated results, metrics, and performance statistics
-using Surge.Models;
+using LoadSurge.Models;
 
 // Define namespace for result processing and statistical aggregation actors
-namespace Surge.Actors
+namespace LoadSurge.Actors
 {
 	/// <summary>
 	/// Actor responsible for collecting, aggregating, and analyzing performance results from load workers.

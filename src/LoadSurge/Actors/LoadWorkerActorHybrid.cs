@@ -2,10 +2,10 @@ using System.Diagnostics;
 using System.Threading.Channels;
 using Akka.Actor;
 using Akka.Event;
-using Surge.Messages;
-using Surge.Models;
+using LoadSurge.Messages;
+using LoadSurge.Models;
 
-namespace Surge.Actors
+namespace LoadSurge.Actors
 {
     /// <summary>
     /// Hybrid implementation of LoadWorkerActor optimized for high-throughput scenarios (100k+ requests).

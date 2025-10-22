@@ -1,12 +1,12 @@
 using System;
 using System.Threading.Tasks;
 using Xunit;
-using Surge.Models;
-using Surge.Runner;
-using Surge.Configuration;
+using LoadSurge.Models;
+using LoadSurge.Runner;
+using LoadSurge.Configuration;
 using Akka.Actor;
 
-namespace Surge.Tests.Unit
+namespace LoadSurge.Tests.Unit
 {
     /// <summary>
     /// Tests to reproduce and verify the Akka.ActorTimeoutException issue

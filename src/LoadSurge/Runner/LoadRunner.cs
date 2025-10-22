@@ -3,19 +3,19 @@
 using Akka.Actor;
 // Import load testing actors for worker and result collection functionality
 // Contains specialized actors for executing load tests and aggregating results
-using Surge.Actors;
+using LoadSurge.Actors;
 // Import configuration settings for customizing load worker behavior
 // Defines different execution modes and performance tuning options
-using Surge.Configuration;
+using LoadSurge.Configuration;
 // Import message types for actor communication and coordination
 // Contains all message contracts used for inter-actor communication
-using Surge.Messages;
+using LoadSurge.Messages;
 // Import data models for load test execution plans and results
 // Defines the structure for test configuration and result aggregation
-using Surge.Models;
+using LoadSurge.Models;
 
 // Define the namespace for load test orchestration and execution
-namespace Surge.Runner
+namespace LoadSurge.Runner
 {
 	/// <summary>
 	/// Main entry point for executing load tests using actor-based architecture.

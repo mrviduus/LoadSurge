@@ -1,4 +1,4 @@
-namespace Surge.Messages
+namespace LoadSurge.Messages
 {
     /// <summary>
     /// Message indicating that a load test request has been initiated.
