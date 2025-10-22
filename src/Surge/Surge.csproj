@@ -19,6 +19,7 @@
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
     <PackageReleaseNotes>Version 1.0.0: Initial release of Surge - Actor-based load testing framework extracted from xUnitV3LoadFramework. Provides framework-agnostic load testing engine with Akka.NET actors, hybrid execution mode, and comprehensive performance metrics.</PackageReleaseNotes>
 
     <!-- Build Settings -->
@@ -42,6 +43,7 @@
 
   <ItemGroup>
     <None Include="../../README.md" Pack="true" PackagePath="/" />
+    <None Include="../../icon.png" Pack="true" PackagePath="/" />
   </ItemGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
