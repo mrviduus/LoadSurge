@@ -37,8 +37,14 @@ dotnet test --verbosity detailed
 # Run tests with code coverage
 dotnet test --collect:"XPlat Code Coverage" --results-directory TestResults
 
-# Run a specific test
+# Run a specific test by class name
 dotnet test --filter "FullyQualifiedName~HybridModeTests"
+
+# Run a specific test method
+dotnet test --filter "FullyQualifiedName~HybridModeTests.ShouldHandleHighConcurrency"
+
+# Run tests excluding CI-flaky tests
+dotnet test --filter "Category!=CI-Flaky"
 ```
 
 ### Package
@@ -48,6 +54,9 @@ dotnet pack src/LoadSurge/LoadSurge.csproj --configuration Release
 
 # Pack with specific version
 dotnet pack src/LoadSurge/LoadSurge.csproj -p:Version=1.0.1
+
+# Pack with symbols for debugging
+dotnet pack src/LoadSurge/LoadSurge.csproj --configuration Release --include-symbols --include-source
 ```
 
 ## Architecture Overview
@@ -102,9 +111,9 @@ LoadRunner (Entry Point)
 ### Execution Modes
 
 **LoadWorkerMode:**
-- `Hybrid` (default) - Channel-based with fixed worker pool, best for high throughput
-- `TaskBased` - Task.Run based, best for moderate load
-- `ActorBased` - Declared but not yet implemented
+- `Hybrid` (default) - Channel-based with fixed worker pool, best for high throughput (100k+ RPS)
+- `TaskBased` - Task.Run based, best for moderate load (<10k RPS)
+- `ActorBased` - **NOT IMPLEMENTED** - Throws exception if selected (reserved for future actor-based isolation)
 
 **TerminationMode:**
 - `Duration` - Stop immediately when duration expires (fastest)
@@ -121,6 +130,29 @@ Actors communicate via immutable message objects (`src/LoadSurge/Messages/`):
 - `BatchCompletedMessage` - Marks batch completion
 - `WorkerThreadCountMessage` - Reports worker pool size
 - `GetLoadResultMessage` - Requests final aggregated results
+
+### LoadWorkerConfiguration Options
+
+Fine-tune load test execution with these configuration settings:
+
+```csharp
+var config = new LoadWorkerConfiguration
+{
+    Mode = LoadWorkerMode.Hybrid,              // Execution mode (Hybrid/TaskBased)
+    MaxWorkerThreads = null,                   // null = auto-calculate based on CPU and concurrency
+    ChannelCapacity = null,                    // null = unbounded (higher memory, better throughput)
+    EnableDetailedMetrics = false,             // Enable comprehensive monitoring (impacts performance)
+    WorkerUtilizationWarningThreshold = 0.8,   // Warn if worker efficiency < 80%
+    QueueTimeWarningThreshold = 1000           // Warn if queue time > 1000ms
+};
+```
+
+**Configuration Guidelines:**
+- `MaxWorkerThreads`: Leave null for auto-sizing or set for predictable resource usage
+- `ChannelCapacity`: Use bounded (e.g., 10000) for memory-constrained environments
+- `EnableDetailedMetrics`: Turn on for debugging, off for benchmarks
+- Worker utilization < 80% indicates insufficient parallelism or I/O bottlenecks
+- Queue time > 1000ms suggests worker pool saturation
 
 ## Key Design Patterns
 
@@ -181,6 +213,41 @@ Action = async () =>
 
 ## Important Implementation Details
 
+### LoadResult Metrics
+
+The `LoadResult` object provides comprehensive performance metrics:
+
+**Core Metrics:**
+- `ScenarioName` / `Name` - Test scenario identifier
+- `Total` - Sum of successful and failed operations
+- `Success` - Operations completed successfully
+- `Failure` - Operations that failed
+- `Time` - Total execution time in seconds
+- `RequestsPerSecond` - Calculated throughput
+
+**Latency Metrics (milliseconds):**
+- `MinLatency` - Best-case response time
+- `AverageLatency` - Mean response time across all operations
+- `MedianLatency` - 50th percentile (P50)
+- `Percentile95Latency` - 95% of requests complete within this time (P95)
+- `Percentile99Latency` - 99% of requests complete within this time (P99)
+- `MaxLatency` - Worst-case response time
+
+**Request Tracking:**
+- `RequestsStarted` - Total initiated requests (may exceed Total if test stops mid-flight)
+- `RequestsInFlight` - Currently executing requests at test end
+- `BatchesCompleted` - Number of execution batches processed
+
+**Queue Metrics (Hybrid Mode Only):**
+- `AvgQueueTime` - Average time requests wait before execution (ms)
+- `MaxQueueTime` - Maximum queue wait time observed (ms)
+- High queue times indicate worker pool saturation
+
+**Resource Metrics:**
+- `WorkerThreadsUsed` - Number of worker threads in hybrid mode
+- `WorkerUtilization` - Efficiency percentage (0.0-1.0)
+- `PeakMemoryUsage` - Maximum memory consumption in bytes
+
 ### Request Counting
 - `RequestsStarted` tracks all initiated requests
 - `RequestsInFlight` tracks currently executing requests
@@ -191,6 +258,7 @@ Action = async () =>
 - Measures time from work item creation to execution start
 - Helps identify scheduling bottlenecks vs. execution bottlenecks
 - Not available in TaskBased mode
+- High queue times (>1000ms) indicate worker pool saturation
 
 ### Memory Monitoring
 - Peak memory captured during `RequestStartedMessage` processing
@@ -246,9 +314,10 @@ public async Task Descriptive_Test_Name()
 - **Security Job:** Scans for vulnerabilities
 
 ### NuGet Publishing
-- Automatic on main branch commits
-- Automatic on version tags (e.g., `v1.0.1`)
+- Automatic on main branch commits (version: 1.0.0.{GITHUB_RUN_NUMBER})
+- Automatic on version tags (e.g., `v1.0.1` uses exact tag version)
 - Requires `NUGET_API_KEY` secret in repository
+- Package includes symbols and source link for debugging
 
 ## Common Scenarios
 
@@ -292,6 +361,16 @@ Key files:
 - src/LoadSurge/LoadSurge.csproj - Package configuration
 - global.json - .NET SDK version (8.0)
 ```
+
+### Build Configuration
+
+**Quality Settings:**
+- `TreatWarningsAsErrors: true` (Release mode) - Enforces clean builds
+- `Nullable: enable` - C# nullable reference types for safety
+- `GenerateDocumentationFile: true` - XML documentation required
+- `Deterministic: true` - Reproducible builds
+- `IncludeSymbols/IncludeSource: true` - Full debugging support
+- `LangVersion: 12` - C# 12 language features
 
 ## Backward Compatibility
 
