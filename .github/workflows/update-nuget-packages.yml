@@ -63,10 +63,10 @@ jobs:
           if [ -n "${{ steps.find-projects.outputs.project }}" ]; then
             echo "Scanning ${{ steps.find-projects.outputs.project }} for updates..."
 
-            # Run dotnet outdated and capture output
+            # Run dotnet outdated with --upgrade:Major to include ALL updates (major, minor, patch)
             # Exit code 0 = no updates, 1 = updates available, >1 = error
             set +e
-            dotnet outdated "${{ steps.find-projects.outputs.project }}"
+            dotnet outdated "${{ steps.find-projects.outputs.project }}" --upgrade:Major
             EXIT_CODE=$?
             set -e
 
@@ -100,10 +100,10 @@ jobs:
       - name: Update packages
         if: steps.scan.outputs.updates_available == 'true'
         run: |
-          # dotnet-outdated with --upgrade will update packages
+          # dotnet-outdated with --upgrade:Major will update ALL packages (major, minor, patch)
           # It will handle Directory.Packages.props (CPM) automatically
-          echo "Updating packages..."
-          dotnet outdated "${{ steps.find-projects.outputs.project }}" --upgrade
+          echo "Updating packages to latest versions..."
+          dotnet outdated "${{ steps.find-projects.outputs.project }}" --upgrade:Major
 
       - name: Configure Git
         if: steps.scan.outputs.updates_available == 'true'
