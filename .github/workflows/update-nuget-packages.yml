@@ -33,7 +33,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
       - name: Setup .NET
@@ -86,7 +86,22 @@ jobs:
         if: steps.check-outdated.outputs.updates_available == 'true'
         run: |
           BRANCH_NAME="nuget-updates-$(date +%Y%m%d)"
-          git checkout -b "$BRANCH_NAME"
+
+          # Fetch all branches to see what exists
+          git fetch origin
+
+          # Check if branch already exists on remote
+          if git ls-remote --heads origin "$BRANCH_NAME" | grep -q "$BRANCH_NAME"; then
+            echo "Branch $BRANCH_NAME already exists on remote, checking it out..."
+            git checkout -B "$BRANCH_NAME" "origin/$BRANCH_NAME"
+
+            # Reset to main to start fresh with updates
+            git reset --hard origin/main
+          else
+            echo "Creating new branch $BRANCH_NAME..."
+            git checkout -b "$BRANCH_NAME"
+          fi
+
           echo "branch=$BRANCH_NAME" >> $GITHUB_ENV
 
       - name: Update packages
@@ -207,14 +222,17 @@ jobs:
 
           Generated on: $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
             git commit -m "$COMMIT_MSG"
-            git push origin "${{ env.branch }}"
+
+            # Force push to handle cases where branch already exists
+            # This is safe because this is an automated branch that gets replaced each run
+            git push --force-with-lease origin "${{ env.branch }}"
             echo "has_changes=true" >> $GITHUB_OUTPUT
           fi
 
       - name: Create Pull Request
         if: steps.check-outdated.outputs.updates_available == 'true' && steps.commit.outputs.has_changes == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           # Prepare status messages
           PARTIAL_WARNING=""
