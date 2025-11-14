@@ -1,8 +1,22 @@
+# Copy this file to .github/workflows/update-nuget-packages.yml in your target repository
+# For LoadSurge: Use schedule cron '0 9 * * 6' (Saturday)
+# For xUnitV3LoadFramework: Use schedule cron '0 9 * * 1' (Monday)
+#
+# IMPORTANT - Central Package Management (CPM):
+# If your repository uses Directory.Packages.props (CPM), the bot will:
+# 1. Automatically detect CPM by reading any .csproj file
+# 2. Read all package versions from Directory.Packages.props
+# 3. ONLY update Directory.Packages.props (not individual .csproj files)
+# 4. Update ALL projects in the repository (since they all share the same version file)
+#
+# This ensures version consistency and prevents conflicts between centralized and local versions.
+# The workflow scans just ONE project (preferably non-test) since all versions are centralized.
+
 name: Update NuGet Packages
 
 on:
   schedule:
-    - cron: '0 9 * * 6'
+    - cron: '0 9 * * 6'  # Change this: 1=Monday, 6=Saturday
   workflow_dispatch:
 
 env:
@@ -34,25 +48,33 @@ jobs:
       - name: Find .csproj files
         id: find-projects
         run: |
-          PROJECTS=$(find . -name "*.csproj" | head -1)
-          echo "Found project: $PROJECTS"
-          echo "project=$PROJECTS" >> $GITHUB_OUTPUT
+          # Find all .csproj files, excluding test projects first, then any project
+          MAIN_PROJECT=$(find . -name "*.csproj" ! -path "*/tests/*" ! -path "*/test/*" ! -name "*Test*.csproj" | head -1)
+          if [ -z "$MAIN_PROJECT" ]; then
+            # If no main project found, use any .csproj file
+            MAIN_PROJECT=$(find . -name "*.csproj" | head -1)
+          fi
+          echo "Found project for scanning: $MAIN_PROJECT"
+          echo "project=$MAIN_PROJECT" >> $GITHUB_OUTPUT
 
       - name: Scan for updates
         id: scan
         run: |
           if [ -n "${{ steps.find-projects.outputs.project }}" ]; then
+            echo "Scanning ${{ steps.find-projects.outputs.project }} for updates..."
             nuget-update-bot scan --project "${{ steps.find-projects.outputs.project }}" --verbose
             SCAN_EXIT=$?
             echo "scan_exit=$SCAN_EXIT" >> $GITHUB_OUTPUT
 
             if [ $SCAN_EXIT -eq 1 ]; then
+              echo "✅ Updates available!"
               echo "updates_available=true" >> $GITHUB_OUTPUT
             else
+              echo "ℹ️ No updates found"
               echo "updates_available=false" >> $GITHUB_OUTPUT
             fi
           else
-            echo "No .csproj files found"
+            echo "❌ No .csproj files found"
             exit 1
           fi
 
