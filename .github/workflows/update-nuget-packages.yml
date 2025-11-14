@@ -62,19 +62,28 @@ jobs:
         run: |
           if [ -n "${{ steps.find-projects.outputs.project }}" ]; then
             echo "Scanning ${{ steps.find-projects.outputs.project }} for updates..."
-            # dotnet-outdated returns 0 if no updates, non-zero if updates available
-            dotnet outdated "${{ steps.find-projects.outputs.project }}" --output json > outdated.json || true
 
-            # Check if there are any outdated packages
-            OUTDATED_COUNT=$(cat outdated.json | grep -c '"LatestVersion"' || echo "0")
+            # Run dotnet outdated and capture output
+            # Exit code 0 = no updates, 1 = updates available, >1 = error
+            set +e
+            dotnet outdated "${{ steps.find-projects.outputs.project }}"
+            EXIT_CODE=$?
+            set -e
 
-            if [ "$OUTDATED_COUNT" -gt 0 ]; then
-              echo "✅ Updates available! Found $OUTDATED_COUNT outdated packages"
-              dotnet outdated "${{ steps.find-projects.outputs.project }}"
+            echo "dotnet outdated exit code: $EXIT_CODE"
+
+            # Exit code 1 means updates are available
+            # Exit code 0 means no updates
+            # Exit code >1 means error
+            if [ $EXIT_CODE -eq 1 ]; then
+              echo "✅ Updates available!"
               echo "updates_available=true" >> $GITHUB_OUTPUT
-            else
+            elif [ $EXIT_CODE -eq 0 ]; then
               echo "ℹ️ No updates found"
               echo "updates_available=false" >> $GITHUB_OUTPUT
+            else
+              echo "❌ Error running dotnet outdated (exit code: $EXIT_CODE)"
+              exit $EXIT_CODE
             fi
           else
             echo "❌ No .csproj files found"
