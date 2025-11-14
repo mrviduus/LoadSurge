@@ -63,27 +63,22 @@ jobs:
           if [ -n "${{ steps.find-projects.outputs.project }}" ]; then
             echo "Scanning ${{ steps.find-projects.outputs.project }} for updates..."
 
-            # Run dotnet outdated with --upgrade:Major to include ALL updates (major, minor, patch)
-            # Exit code 0 = no updates, 1 = updates available, >1 = error
+            # Run dotnet outdated with --version-lock None to include ALL updates (major, minor, patch)
+            # Exit code 0 = no updates, non-zero if updates available or error
             set +e
-            dotnet outdated "${{ steps.find-projects.outputs.project }}" --upgrade:Major
+            dotnet outdated "${{ steps.find-projects.outputs.project }}" --version-lock None
             EXIT_CODE=$?
             set -e
 
             echo "dotnet outdated exit code: $EXIT_CODE"
 
-            # Exit code 1 means updates are available
-            # Exit code 0 means no updates
-            # Exit code >1 means error
-            if [ $EXIT_CODE -eq 1 ]; then
+            # Non-zero exit code means updates are available (tool exits with error if updates found)
+            if [ $EXIT_CODE -ne 0 ]; then
               echo "✅ Updates available!"
               echo "updates_available=true" >> $GITHUB_OUTPUT
-            elif [ $EXIT_CODE -eq 0 ]; then
+            else
               echo "ℹ️ No updates found"
               echo "updates_available=false" >> $GITHUB_OUTPUT
-            else
-              echo "❌ Error running dotnet outdated (exit code: $EXIT_CODE)"
-              exit $EXIT_CODE
             fi
           else
             echo "❌ No .csproj files found"
@@ -100,10 +95,10 @@ jobs:
       - name: Update packages
         if: steps.scan.outputs.updates_available == 'true'
         run: |
-          # dotnet-outdated with --upgrade:Major will update ALL packages (major, minor, patch)
+          # dotnet-outdated with --upgrade Auto and --version-lock None will update ALL packages
           # It will handle Directory.Packages.props (CPM) automatically
           echo "Updating packages to latest versions..."
-          dotnet outdated "${{ steps.find-projects.outputs.project }}" --upgrade:Major
+          dotnet outdated "${{ steps.find-projects.outputs.project }}" --upgrade Auto --version-lock None
 
       - name: Configure Git
         if: steps.scan.outputs.updates_available == 'true'
