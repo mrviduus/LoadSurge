@@ -1,14 +1,14 @@
 # Automated NuGet Package Updates using dotnet-outdated-tool
 #
 # This workflow automatically checks for and updates outdated NuGet packages.
-# For LoadSurge: Runs on Saturday at 9 AM UTC
-# For xUnitV3LoadFramework: Change cron to '0 9 * * 1' (Monday)
+# Runs every Saturday at 9 AM UTC
 #
 # IMPORTANT - Central Package Management (CPM):
-# If your repository uses Directory.Packages.props (CPM), dotnet-outdated-tool will:
-# 1. Automatically detect CPM
-# 2. Update ONLY Directory.Packages.props (not individual .csproj files)
-# 3. Apply updates to ALL projects (since they share the same version file)
+# This repository uses Directory.Packages.props for central package management.
+# The workflow will:
+# 1. Automatically detect and update Directory.Packages.props
+# 2. Apply updates to ALL projects (since they share the same version file)
+# 3. Create a PR with detailed update information
 #
 # This ensures version consistency across all projects in the repository.
 
@@ -16,11 +16,11 @@ name: Update NuGet Packages
 
 on:
   schedule:
-    - cron: '0 9 * * 6'  # Change this: 1=Monday, 6=Saturday
-  workflow_dispatch:
+    - cron: '0 9 * * 6'  # Every Saturday at 9 AM UTC
+  workflow_dispatch:      # Allow manual triggering
 
 env:
-  DOTNET_VERSION: '9.0.x'
+  DOTNET_VERSION: '8.0.x'  # Match the project's .NET version
 
 jobs:
   update-packages:
@@ -45,65 +45,108 @@ jobs:
         run: |
           dotnet tool install --global dotnet-outdated-tool || dotnet tool update --global dotnet-outdated-tool
 
-      - name: Find .csproj files
-        id: find-projects
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Check for outdated packages
+        id: check-outdated
         run: |
-          # Find all .csproj files, excluding test projects first, then any project
-          MAIN_PROJECT=$(find . -name "*.csproj" ! -path "*/tests/*" ! -path "*/test/*" ! -name "*Test*.csproj" | head -1)
-          if [ -z "$MAIN_PROJECT" ]; then
-            # If no main project found, use any .csproj file
-            MAIN_PROJECT=$(find . -name "*.csproj" | head -1)
-          fi
-          echo "Found project for scanning: $MAIN_PROJECT"
-          echo "project=$MAIN_PROJECT" >> $GITHUB_OUTPUT
+          echo "Checking for outdated NuGet packages..."
 
-      - name: Scan for updates
-        id: scan
-        run: |
-          if [ -n "${{ steps.find-projects.outputs.project }}" ]; then
-            echo "Scanning ${{ steps.find-projects.outputs.project }} for updates..."
+          # Run dotnet-outdated and save output
+          # Using --fail-on-updates to get exit code 2 when updates are available
+          set +e  # Don't exit on non-zero return code
+          OUTPUT=$(dotnet-outdated --fail-on-updates 2>&1)
+          EXIT_CODE=$?
+          set -e
 
-            # Run dotnet outdated and capture output to check for updates
-            # --version-lock None includes ALL updates (major, minor, patch)
-            OUTPUT=$(dotnet outdated "${{ steps.find-projects.outputs.project }}" --version-lock None 2>&1)
-            echo "$OUTPUT"
+          echo "$OUTPUT"
 
-            # Check if output contains version arrows (->) which indicate updates
-            if echo "$OUTPUT" | grep -q "->"; then
-              echo "✅ Updates available!"
-              echo "updates_available=true" >> $GITHUB_OUTPUT
-            else
-              echo "ℹ️ No updates found"
-              echo "updates_available=false" >> $GITHUB_OUTPUT
-            fi
+          # Save the output for later use in PR body
+          echo "OUTDATED_OUTPUT<<EOF" >> $GITHUB_ENV
+          echo "$OUTPUT" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+          # Exit code 2 means updates are available
+          if [ $EXIT_CODE -eq 2 ]; then
+            echo "✅ Updates available!"
+            echo "updates_available=true" >> $GITHUB_OUTPUT
+
+            # Extract package update information for PR body
+            echo "$OUTPUT" | grep -E "^\s+\S+\s+\S+\s+->\s+\S+" > /tmp/updates.txt || true
+          elif [ $EXIT_CODE -eq 0 ]; then
+            echo "ℹ️ No updates found - all packages are up to date"
+            echo "updates_available=false" >> $GITHUB_OUTPUT
           else
-            echo "❌ No .csproj files found"
+            echo "❌ Error checking for updates (exit code: $EXIT_CODE)"
             exit 1
           fi
 
       - name: Create update branch
-        if: steps.scan.outputs.updates_available == 'true'
+        if: steps.check-outdated.outputs.updates_available == 'true'
         run: |
           BRANCH_NAME="nuget-updates-$(date +%Y%m%d)"
           git checkout -b "$BRANCH_NAME"
           echo "branch=$BRANCH_NAME" >> $GITHUB_ENV
 
       - name: Update packages
-        if: steps.scan.outputs.updates_available == 'true'
+        if: steps.check-outdated.outputs.updates_available == 'true'
+        id: update
         run: |
-          # dotnet-outdated with --upgrade Auto and --version-lock None will update ALL packages
-          # It will handle Directory.Packages.props (CPM) automatically
+          # Update all outdated packages
+          # dotnet-outdated will automatically detect and update Directory.Packages.props
           echo "Updating packages to latest versions..."
-          dotnet outdated "${{ steps.find-projects.outputs.project }}" --upgrade Auto --version-lock None
+
+          # Capture the original state for comparison
+          cp Directory.Packages.props /tmp/Directory.Packages.props.original || true
+
+          # Try to upgrade packages, but continue even if some fail
+          set +e
+          dotnet-outdated --upgrade
+          UPGRADE_EXIT_CODE=$?
+          set -e
+
+          if [ $UPGRADE_EXIT_CODE -ne 0 ]; then
+            echo "⚠️ Some packages may have failed to update, continuing with successfully updated packages..."
+            echo "partial_update=true" >> $GITHUB_OUTPUT
+          else
+            echo "partial_update=false" >> $GITHUB_OUTPUT
+          fi
+
+          # Check what actually got updated
+          if [ -f /tmp/Directory.Packages.props.original ]; then
+            if diff -q /tmp/Directory.Packages.props.original Directory.Packages.props > /dev/null; then
+              echo "❌ No packages were actually updated"
+              echo "packages_updated=false" >> $GITHUB_OUTPUT
+              exit 1
+            else
+              echo "✅ Packages were successfully updated"
+              echo "packages_updated=true" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+          # Restore to verify the updated packages work
+          dotnet restore
+
+          # Run a basic build to ensure everything compiles
+          echo "Verifying build with updated packages..."
+          dotnet build --no-restore
+
+          # Get the list of what was actually updated for the PR
+          echo "Checking what was updated..."
+          dotnet-outdated > /tmp/post-update-check.txt 2>&1 || true
+          echo "POST_UPDATE_CHECK<<EOF" >> $GITHUB_ENV
+          cat /tmp/post-update-check.txt >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
 
       - name: Configure Git
-        if: steps.scan.outputs.updates_available == 'true'
+        if: steps.check-outdated.outputs.updates_available == 'true'
         run: |
           git config user.name "NuGet Update Bot"
           git config user.email "nuget-bot@github-actions"
 
       - name: Commit changes
-        if: steps.scan.outputs.updates_available == 'true'
+        if: steps.check-outdated.outputs.updates_available == 'true'
         id: commit
         run: |
           git add -A
@@ -122,37 +165,66 @@ jobs:
           fi
 
       - name: Create Pull Request
-        if: steps.scan.outputs.updates_available == 'true' && steps.commit.outputs.has_changes == 'true'
+        if: steps.check-outdated.outputs.updates_available == 'true' && steps.commit.outputs.has_changes == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh pr create \
-            --title "🔄 Update NuGet Packages" \
-            --body "## NuGet Package Updates
+          # Prepare warning message if partial update
+          PARTIAL_WARNING=""
+          if [ "${{ steps.update.outputs.partial_update }}" == "true" ]; then
+            PARTIAL_WARNING="
+          > ⚠️ **Note**: Some packages failed to update. Please review the changes carefully.
+          "
+          fi
+
+          # Create PR body with actual update details
+          PR_BODY="## 🔄 NuGet Package Updates
 
           This PR contains automatic NuGet package updates generated by dotnet-outdated-tool.
+          $PARTIAL_WARNING
 
-          ### Changes
-          - Updated outdated NuGet packages to their latest versions
-          - All updates follow semantic versioning best practices
+          ### 📦 Package Updates
 
-          ### Testing
+          **Before Update:**
+          \`\`\`
+          ${{ env.OUTDATED_OUTPUT }}
+          \`\`\`
+
+          **After Update:**
+          \`\`\`
+          ${{ env.POST_UPDATE_CHECK }}
+          \`\`\`
+
+          ### ✅ Checklist
           Please review the changes and ensure:
           - [ ] All tests pass
           - [ ] No breaking changes introduced
           - [ ] Application builds successfully
+          - [ ] Package updates are compatible
 
-          ### Generated Information
+          ### 📋 Generated Information
           - **Date**: $(date -u +'%Y-%m-%d %H:%M:%S UTC')
           - **Triggered by**: GitHub Actions (Scheduled)
           - **Tool**: [dotnet-outdated-tool](https://github.com/dotnet-outdated/dotnet-outdated)
 
           ---
-          🤖 This PR was automatically created by GitHub Actions" \
-            --base main \
-            --head "${{ env.branch }}"
+          🤖 This PR was automatically created by GitHub Actions"
+
+          # Check if PR already exists for today
+          EXISTING_PR=$(gh pr list --head "${{ env.branch }}" --json number --jq '.[0].number' || echo "")
+
+          if [ -n "$EXISTING_PR" ]; then
+            echo "PR already exists (#$EXISTING_PR), updating it..."
+            gh pr edit "$EXISTING_PR" --body "$PR_BODY"
+          else
+            gh pr create \
+              --title "🔄 Update NuGet Packages ($(date +%Y-%m-%d))" \
+              --body "$PR_BODY" \
+              --base main \
+              --head "${{ env.branch }}"
+          fi
 
       - name: No updates needed
-        if: steps.scan.outputs.updates_available == 'false'
+        if: steps.check-outdated.outputs.updates_available == 'false'
         run: |
           echo "✅ All packages are up to date!"
