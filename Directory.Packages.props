@@ -30,19 +30,7 @@
   </ItemGroup>
 
   <ItemGroup Label="Development and Build Tools">
-    <!-- Reproducible Builds for Deterministic Output -->
-    <PackageVersion Include="DotNet.ReproducibleBuilds" Version="1.2.25">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
-    </PackageVersion>
-
-    <!-- Code Analysis and Quality -->
-    <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="3.3.5">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
-    </PackageVersion>
-
-    <!-- Source Link for GitHub Actions -->
+    <!-- Source Link for GitHub - Enables debugging of NuGet package source code -->
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="8.0.0">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
