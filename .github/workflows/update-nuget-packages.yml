@@ -42,7 +42,7 @@ jobs:
         id: scan
         run: |
           if [ -n "${{ steps.find-projects.outputs.project }}" ]; then
-            nuget-update-bot scan "${{ steps.find-projects.outputs.project }}" --verbose
+            nuget-update-bot scan --project "${{ steps.find-projects.outputs.project }}" --verbose
             SCAN_EXIT=$?
             echo "scan_exit=$SCAN_EXIT" >> $GITHUB_OUTPUT
 
@@ -68,7 +68,7 @@ jobs:
         run: |
           for project in $(find . -name "*.csproj"); do
             echo "Updating $project..."
-            nuget-update-bot update "$project" --verbose || true
+            nuget-update-bot update --project "$project" --verbose || true
           done
 
       - name: Configure Git
