@@ -102,19 +102,24 @@ namespace LoadSurge.Actors
             // Initialize collection to track all spawned tasks for proper cleanup and monitoring
             // This allows us to wait for completion and track outstanding work
             var runningTasks = new List<Task>();
-            
+
+            // Track total iterations spawned for MaxIterations support
+            var totalIterationsSpawned = 0;
+
             // Calculate the expected number of batches based on test duration and interval
             // Used for capacity planning and progress monitoring throughout the test
             var expectedBatches = (int)Math.Ceiling(_executionPlan.Settings.Duration.TotalMilliseconds / _executionPlan.Settings.Interval.TotalMilliseconds);
-            
+
             // Calculate total expected requests for resource planning and validation
-            // Helps predict memory usage and validate final results against expectations
-            var expectedTotalRequests = expectedBatches * _executionPlan.Settings.Concurrency;
-            
+            // If MaxIterations is set, use that as the expected total
+            var expectedTotalRequests = _executionPlan.Settings.MaxIterations ??
+                expectedBatches * _executionPlan.Settings.Concurrency;
+
             // Log test initialization with key parameters for monitoring and debugging
             // Provides visibility into test scope and expected resource requirements
-            _logger.Info("LoadWorkerActor '{0}' starting. Expected batches: {1}, Expected total requests: {2}", 
-                workerName, expectedBatches, expectedTotalRequests);
+            _logger.Info("LoadWorkerActor '{0}' starting. Expected batches: {1}, Expected total requests: {2}, MaxIterations: {3}",
+                workerName, expectedBatches, expectedTotalRequests,
+                _executionPlan.Settings.MaxIterations?.ToString() ?? "unlimited");
 
             try
             {
@@ -139,11 +144,15 @@ namespace LoadSurge.Actors
                     // This is used for timing accuracy and detecting schedule drift
                     var expectedBatchStartTime = TimeSpan.FromMilliseconds(batchNumber * _executionPlan.Settings.Interval.TotalMilliseconds);
                     
+                    // Check if MaxIterations limit has been reached
+                    var maxIterationsReached = _executionPlan.Settings.MaxIterations.HasValue &&
+                        totalIterationsSpawned >= _executionPlan.Settings.MaxIterations.Value;
+
                     // Apply termination mode logic to determine when to stop creating new batches
-                    var shouldTerminate = _executionPlan.Settings.TerminationMode switch
+                    var shouldTerminate = maxIterationsReached || _executionPlan.Settings.TerminationMode switch
                     {
                         TerminationMode.Duration => elapsedTime >= _executionPlan.Settings.Duration,
-                        TerminationMode.CompleteCurrentInterval => 
+                        TerminationMode.CompleteCurrentInterval =>
                             expectedBatchStartTime >= _executionPlan.Settings.Duration,
                         TerminationMode.StrictDuration => elapsedTime >= _executionPlan.Settings.Duration,
                         _ => elapsedTime >= _executionPlan.Settings.Duration
@@ -160,16 +169,26 @@ namespace LoadSurge.Actors
                     // Initialize collection for tracking tasks within this specific batch
                     // Allows for batch-level monitoring and debugging capabilities
                     var batchTasks = new List<Task>();
-                    
-                    // Create the specified number of concurrent tasks for this batch
+
+                    // Calculate how many iterations to spawn in this batch
+                    // If MaxIterations is set, only spawn remaining iterations
+                    var iterationsThisBatch = _executionPlan.Settings.Concurrency;
+                    if (_executionPlan.Settings.MaxIterations.HasValue)
+                    {
+                        var remainingIterations = _executionPlan.Settings.MaxIterations.Value - totalIterationsSpawned;
+                        iterationsThisBatch = Math.Min(iterationsThisBatch, remainingIterations);
+                    }
+
+                    // Create the calculated number of concurrent tasks for this batch
                     // Each task represents one execution of the test action
-                    for (int i = 0; i < _executionPlan.Settings.Concurrency; i++)
+                    for (int i = 0; i < iterationsThisBatch; i++)
                     {
                         // Create and start a new task for executing the test action
                         // Each task runs independently but is tracked for completion
                         var task = ExecuteActionAsync(workerName, cts.Token);
                         batchTasks.Add(task);
                         runningTasks.Add(task);
+                        totalIterationsSpawned++;
                     }
 
                     // Log detailed batch information for debugging and monitoring

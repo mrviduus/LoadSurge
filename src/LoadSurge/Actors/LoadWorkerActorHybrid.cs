@@ -299,11 +299,15 @@ namespace LoadSurge.Actors
                 // This is used for timing accuracy and detecting schedule drift
                 var expectedBatchStartTime = TimeSpan.FromMilliseconds(batchNumber * _executionPlan.Settings.Interval.TotalMilliseconds);
                 
+                // Check if MaxIterations limit has been reached
+                var maxIterationsReached = _executionPlan.Settings.MaxIterations.HasValue &&
+                    totalScheduled >= _executionPlan.Settings.MaxIterations.Value;
+
                 // Apply termination mode logic to determine when to stop creating new batches
-                var shouldTerminate = _executionPlan.Settings.TerminationMode switch
+                var shouldTerminate = maxIterationsReached || _executionPlan.Settings.TerminationMode switch
                 {
                     TerminationMode.Duration => elapsedTime >= _executionPlan.Settings.Duration,
-                    TerminationMode.CompleteCurrentInterval => 
+                    TerminationMode.CompleteCurrentInterval =>
                         expectedBatchStartTime >= _executionPlan.Settings.Duration,
                     TerminationMode.StrictDuration => elapsedTime >= _executionPlan.Settings.Duration,
                     _ => elapsedTime >= _executionPlan.Settings.Duration
@@ -317,9 +321,18 @@ namespace LoadSurge.Actors
                     break;
                 }
 
-                // Generate and schedule the configured number of work items for this batch
+                // Calculate how many items to schedule in this batch
+                // If MaxIterations is set, only schedule remaining iterations
+                var itemsThisBatch = _executionPlan.Settings.Concurrency;
+                if (_executionPlan.Settings.MaxIterations.HasValue)
+                {
+                    var remainingIterations = _executionPlan.Settings.MaxIterations.Value - totalScheduled;
+                    itemsThisBatch = Math.Min(itemsThisBatch, remainingIterations);
+                }
+
+                // Generate and schedule the calculated number of work items for this batch
                 // Each work item represents one execution of the test action
-                for (int i = 0; i < _executionPlan.Settings.Concurrency; i++)
+                for (int i = 0; i < itemsThisBatch; i++)
                 {
                     // Create a new work item with unique identifier and timing information
                     // This data is used for queue time calculations and batch tracking
@@ -336,7 +349,7 @@ namespace LoadSurge.Actors
                     // Write the work item to the channel for worker consumption
                     // This is a high-performance operation that rarely blocks with unbounded channels
                     await _workChannel.Writer.WriteAsync(workItem, cancellationToken);
-                    
+
                     // Increment total scheduled counter for monitoring purposes
                     totalScheduled++;
                 }

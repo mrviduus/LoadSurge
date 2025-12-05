@@ -51,6 +51,14 @@ namespace LoadSurge.Models
         /// Industry standard is CompleteCurrentInterval for predictable request counts.
         /// </summary>
         public TerminationMode TerminationMode { get; set; } = TerminationMode.Duration;
+
+        /// <summary>
+        /// Gets or sets the maximum number of iterations (action executions) before stopping.
+        /// When set, the test will stop after exactly this many executions regardless of duration.
+        /// Null means no iteration limit - test runs until duration expires.
+        /// Useful for fixed-count load tests where you need predictable iteration counts.
+        /// </summary>
+        public int? MaxIterations { get; set; }
         
         /// <summary>
         /// Gets the effective graceful stop timeout, applying defaults if not specified.
