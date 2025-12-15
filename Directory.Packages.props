@@ -10,7 +10,7 @@
   <!-- Package Version Management -->
   <ItemGroup Label="Core Framework Dependencies">
     <!-- Akka.NET Actor Framework -->
-    <PackageVersion Include="Akka" Version="1.5.56" />
+    <PackageVersion Include="Akka" Version="1.5.57" />
   </ItemGroup>
 
   <ItemGroup Label="Testing Dependencies">
