@@ -1,3 +1,5 @@
+using System;
+
 namespace LoadSurge.Models
 {
 	/// <summary>
@@ -10,7 +12,7 @@ namespace LoadSurge.Models
 		/// Gets or sets the name of the load test scenario that was executed.
 		/// Used for identification and reporting purposes across multiple test runs.
 		/// </summary>
-		public required string ScenarioName { get; set; }
+		public string ScenarioName { get; set; } = string.Empty;
 		
 		/// <summary>
 		/// Gets or sets the descriptive name for this load test result.

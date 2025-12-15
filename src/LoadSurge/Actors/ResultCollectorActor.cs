@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 // Import Akka.NET actor framework for message-driven result aggregation and processing
 // Provides the foundation for centralized result collection from distributed workers
 using Akka.Actor;
@@ -48,11 +51,11 @@ namespace LoadSurge.Actors
 		
 		// Collection of all latency measurements for statistical analysis
 		// Used to calculate percentiles, averages, and identify performance patterns
-		private readonly List<double> _latencies = new();
-		
+		private readonly List<double> _latencies = new List<double>();
+
 		// Collection of queue time measurements for worker pool performance analysis
 		// Helps identify bottlenecks in work distribution and worker utilization
-		private readonly List<double> _queueTimes = new();
+		private readonly List<double> _queueTimes = new List<double>();
 		
 		// Akka.NET logging adapter for structured logging with actor context
 		// Provides consistent logging format with timestamps and severity levels

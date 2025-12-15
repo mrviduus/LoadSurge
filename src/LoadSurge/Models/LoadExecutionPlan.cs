@@ -1,3 +1,6 @@
+using System;
+using System.Threading.Tasks;
+
 // Define namespace for load testing data models and configuration structures
 // Contains all DTOs and data contracts used throughout the load testing framework
 namespace LoadSurge.Models
@@ -16,7 +19,7 @@ namespace LoadSurge.Models
         /// This name appears in all log messages and result files for traceability.
         /// Should be descriptive and unique within the test suite for clarity.
         /// </summary>
-        public required string Name { get; set; }
+        public string Name { get; set; } = string.Empty;
         
         /// <summary>
         /// Gets or sets the load test configuration settings including concurrency, duration, and intervals.
@@ -24,7 +27,7 @@ namespace LoadSurge.Models
         /// Contains all parameters that control the test execution pattern and resource utilization.
         /// This configuration drives the worker creation and scheduling algorithms.
         /// </summary>
-        public required LoadSettings Settings { get; set; }
+        public LoadSettings Settings { get; set; } = new LoadSettings();
         
         /// <summary>
         /// Gets or sets the asynchronous test action to be executed during load testing.
@@ -33,6 +36,6 @@ namespace LoadSurge.Models
         /// Should be idempotent and thread-safe as it will be executed concurrently by multiple workers.
         /// Performance of this action directly impacts the overall test results and metrics.
         /// </summary>
-        public required Func<Task<bool>> Action { get; set; }
+        public Func<Task<bool>>? Action { get; set; }
     }
 }

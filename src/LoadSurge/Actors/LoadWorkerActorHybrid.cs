@@ -1,4 +1,9 @@
+using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Threading.Channels;
 using Akka.Actor;
 using Akka.Event;
@@ -37,7 +42,7 @@ namespace LoadSurge.Actors
 
         // Cancellation token source for graceful shutdown of all worker threads
         // Allows coordinated termination of the entire worker pool when test completes
-        private readonly CancellationTokenSource _workerCts = new();
+        private readonly CancellationTokenSource _workerCts = new CancellationTokenSource();
 
         // Optimal number of worker threads calculated based on system resources and concurrency requirements
         // Balances resource utilization with performance to prevent thread starvation or excess overhead
@@ -468,7 +473,7 @@ namespace LoadSurge.Actors
                 
                 // Execute the actual test action and capture the result
                 // This is the user-defined action that represents the workload being tested
-                var result = await _executionPlan.Action();
+                var result = await _executionPlan.Action!();
                 
                 // Stop timing immediately after action completion for accuracy
                 // Minimizes measurement overhead in the latency calculation

@@ -1,6 +1,11 @@
+using System;
+using System.Collections.Generic;
 // Import System.Diagnostics for high-precision timing measurements using Stopwatch
 // Essential for accurate latency tracking and performance monitoring
 using System.Diagnostics;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 // Import Akka.NET actor framework for message-driven concurrency and fault tolerance
 // Provides the foundation for scalable, distributed load testing architecture
 using Akka.Actor;
@@ -327,7 +332,7 @@ namespace LoadSurge.Actors
                 
                 // Execute the actual test action and capture the result
                 // This is the user-defined action that represents the workload being tested
-                bool result = await _executionPlan.Action();
+                bool result = await _executionPlan.Action!();
                 
                 // Stop timing immediately after action completion for accuracy
                 // Minimizes measurement overhead in the latency calculation

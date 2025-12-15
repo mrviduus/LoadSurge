@@ -1,3 +1,5 @@
+using System;
+
 // Define namespace for load testing configuration models and settings structures
 // Contains all configuration DTOs that control load test execution behavior
 namespace LoadSurge.Models
