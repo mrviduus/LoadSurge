@@ -3,6 +3,7 @@
 High-performance, actor-based load testing framework for .NET.
 
 [![NuGet](https://img.shields.io/nuget/v/LoadSurge.svg)](https://www.nuget.org/packages/LoadSurge)
+[![NuGet Downloads](https://img.shields.io/nuget/dt/LoadSurge.svg)](https://www.nuget.org/packages/LoadSurge)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ## Installation
