@@ -10,7 +10,7 @@
   <!-- Package Version Management -->
   <ItemGroup Label="Core Framework Dependencies">
     <!-- Akka.NET Actor Framework -->
-    <PackageVersion Include="Akka" Version="1.5.57" />
+    <PackageVersion Include="Akka" Version="1.5.58" />
     <!-- NetStandard 2.0 compatibility packages -->
     <PackageVersion Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.1" />
     <PackageVersion Include="System.Threading.Channels" Version="10.0.1" />
