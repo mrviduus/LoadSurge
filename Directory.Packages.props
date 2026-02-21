@@ -6,35 +6,30 @@
     <EnablePackageVersionOverride>false</EnablePackageVersionOverride>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
   </PropertyGroup>
-
   <!-- Package Version Management -->
   <ItemGroup Label="Core Framework Dependencies">
     <!-- Akka.NET Actor Framework -->
-    <PackageVersion Include="Akka" Version="1.5.59" />
+    <PackageVersion Include="Akka" Version="1.5.60" />
     <!-- NetStandard 2.0 compatibility packages -->
-    <PackageVersion Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.2" />
-    <PackageVersion Include="System.Threading.Channels" Version="10.0.2" />
+    <PackageVersion Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.3" />
+    <PackageVersion Include="System.Threading.Channels" Version="10.0.3" />
   </ItemGroup>
-
   <ItemGroup Label="Testing Dependencies">
     <!-- xUnit v3 Core Dependencies -->
     <PackageVersion Include="xunit.v3" Version="3.2.2" />
     <PackageVersion Include="xunit.v3.extensibility.core" Version="3.2.2" />
     <PackageVersion Include="xunit.extensibility.execution" Version="2.9.0" />
-
     <!-- xUnit Runners and Tools -->
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageVersion>
-
     <!-- Microsoft Testing Platform -->
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.0.1" />
   </ItemGroup>
-
   <ItemGroup Label="Development and Build Tools">
     <!-- Source Link for GitHub - Enables debugging of NuGet package source code -->
-    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="8.0.0">
+    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.103">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
     </PackageVersion>
