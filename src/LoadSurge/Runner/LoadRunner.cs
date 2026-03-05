@@ -87,9 +87,12 @@ namespace LoadSurge.Runner
 				LoadWorkerMode.Hybrid => Props.Create(() => 
 					new LoadWorkerActorHybrid(executionPlan, resultCollector)),
 					
-				// Throw exception for unsupported modes to fail fast during development
-				// Ensures all modes are explicitly implemented and prevents silent failures
-				_ => throw new ArgumentException($"LoadWorkerMode {configuration.Mode} is not yet implemented")
+				// Actor-based mode: Uses Akka router pools, scheduler, and supervision
+				// Optimized for fault tolerance with moderate throughput (~10-50k RPS)
+				LoadWorkerMode.ActorBased => Props.Create(() =>
+					new LoadWorkerActorBased(executionPlan, resultCollector)),
+
+				_ => throw new ArgumentException($"LoadWorkerMode {configuration.Mode} is not supported")
 			};
 
 			// Create and start the load worker actor within the actor system

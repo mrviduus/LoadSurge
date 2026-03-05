@@ -7,10 +7,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 LoadSurge is a high-performance, actor-based load testing framework for .NET built on Akka.NET. It provides framework-agnostic load testing capabilities that can be integrated with any testing framework or used standalone.
 
 **Key Technologies:**
-- .NET 8.0
-- Akka.NET 1.5.54 (Actor model)
+- .NET Standard 2.0 (library target — compatible with .NET Framework 4.7.2+, .NET 6/8/9+)
+- .NET 8.0 (test project target)
+- Akka.NET 1.5.61 (Actor model)
 - xUnit v3 (Testing)
-- NuGet package published as `LoadSurge`
+- NuGet package published as `LoadSurge` (v2.0.0)
+- `ImplicitUsings: disable` — all usings must be explicit
+- Central Package Management via `Directory.Packages.props`
 
 ## Build & Development Commands
 
@@ -359,7 +362,7 @@ LoadSurge/
 
 Key files:
 - src/LoadSurge/LoadSurge.csproj - Package configuration
-- global.json - .NET SDK version (8.0)
+- global.json - .NET SDK version (8.0, rollForward: latestFeature)
 ```
 
 ### Build Configuration
@@ -371,6 +374,7 @@ Key files:
 - `Deterministic: true` - Reproducible builds
 - `IncludeSymbols/IncludeSource: true` - Full debugging support
 - `LangVersion: 12` - C# 12 language features
+- `ImplicitUsings: disable` - All `using` statements must be explicit
 
 ## Backward Compatibility
 

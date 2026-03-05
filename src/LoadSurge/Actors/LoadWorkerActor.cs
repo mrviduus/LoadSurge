@@ -1,45 +1,54 @@
 using System;
 using System.Collections.Generic;
-// Import System.Diagnostics for high-precision timing measurements using Stopwatch
-// Essential for accurate latency tracking and performance monitoring
 using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-// Import Akka.NET actor framework for message-driven concurrency and fault tolerance
-// Provides the foundation for scalable, distributed load testing architecture
 using Akka.Actor;
-// Import Akka.Event for structured logging within the actor system
-// Enables centralized logging with proper context and severity levels
 using Akka.Event;
-// Import message contracts for inter-actor communication during load testing
-// Defines all message types used for coordination and result reporting
 using LoadSurge.Messages;
-// Import data models for load test configuration and result structures
-// Contains execution plans, settings, and result aggregation models
 using LoadSurge.Models;
 
-// Define namespace for load testing actor implementations
 namespace LoadSurge.Actors
 {
     /// <summary>
     /// Actor responsible for executing load tests using Task-based concurrent execution.
-    /// Manages the lifecycle of load test execution with precise timing control and batch processing.
+    /// Uses Become/Unbecome state machine and Akka Scheduler for batch timing.
     /// Implements the Task-based execution mode for moderate concurrency scenarios.
     /// </summary>
     public class LoadWorkerActor : ReceiveActor
     {
-        // Store the execution plan that defines test configuration, duration, and action to execute
-        // This immutable configuration drives all aspects of the load test execution
         private readonly LoadExecutionPlan _executionPlan;
-
-        // Reference to the result collector actor for sending performance metrics and test results
-        // All timing data, success/failure counts, and latency measurements are sent here
         private readonly IActorRef _resultCollector;
-
-        // Akka.NET logging adapter for structured logging with actor context information
-        // Provides consistent logging format with actor path, timestamps, and severity levels
         private readonly ILoggingAdapter _logger = Context.GetLogger();
+
+        // State
+        private IActorRef _replyTo = ActorRefs.Nobody;
+        private ICancelable _tickSchedule = new Cancelable(Context.System.Scheduler);
+        private ICancelable _durationSchedule = new Cancelable(Context.System.Scheduler);
+        private readonly List<Task> _runningTasks = new List<Task>();
+        private DateTime _startTime;
+        private int _totalIterationsSpawned;
+
+        #region Internal Messages
+
+        private class ScheduleTickMessage
+        {
+            public int BatchNumber { get; }
+            public ScheduleTickMessage(int batchNumber) { BatchNumber = batchNumber; }
+        }
+
+        private class DurationExpiredMessage
+        {
+            public static readonly DurationExpiredMessage Instance = new DurationExpiredMessage();
+        }
+
+        private class GracePeriodExpiredMessage
+        {
+            public static readonly GracePeriodExpiredMessage Instance = new GracePeriodExpiredMessage();
+        }
+
+        #endregion
 
         /// <summary>
         /// Constructor to initialize the LoadWorkerActor with execution plan and result collector.
@@ -49,318 +58,241 @@ namespace LoadSurge.Actors
         /// <param name="resultCollector">Actor reference for sending test results and metrics</param>
         public LoadWorkerActor(LoadExecutionPlan executionPlan, IActorRef resultCollector)
         {
-            // Store the execution plan for use throughout the actor's lifecycle
-            // This contains all test configuration including timing, concurrency, and test action
             _executionPlan = executionPlan;
-            
-            // Store reference to result collector for sending performance data
-            // All test results, latency measurements, and status updates go through this actor
             _resultCollector = resultCollector;
 
-            // Define message handler for StartLoadMessage
-            // Uses PipeTo pattern to properly handle async operations in actors
-            Receive<StartLoadMessage>(message =>
+            Idle();
+        }
+
+        /// <summary>
+        /// Idle state — waiting for StartLoadMessage.
+        /// </summary>
+        private void Idle()
+        {
+            Receive<StartLoadMessage>(_ =>
             {
-                // Use PipeTo to handle async operation and maintain proper sender reference
-                RunWorkAsync()
-                    .ContinueWith(task =>
-                    {
-                        if (task.IsFaulted)
-                        {
-                            _logger.Error(task.Exception, "LoadWorkerActor failed during execution");
-                            return new LoadResult 
-                            { 
-                                ScenarioName = _executionPlan.Name,
-                                Success = 0, 
-                                Failure = 1, 
-                                Total = 1, 
-                                Time = 0,
-                                RequestsPerSecond = 0,
-                                AverageLatency = 0
-                            };
-                        }
-                        return task.Result;
-                    })
-                    .PipeTo(Sender);
+                _replyTo = Sender;
+                _startTime = DateTime.UtcNow;
+                _totalIterationsSpawned = 0;
+
+                _resultCollector.Tell(new StartLoadMessage());
+
+                var workerName = Self.Path.Name;
+                var expectedBatches = (int)Math.Ceiling(_executionPlan.Settings.Duration.TotalMilliseconds / _executionPlan.Settings.Interval.TotalMilliseconds);
+                var expectedTotalRequests = _executionPlan.Settings.MaxIterations ??
+                    expectedBatches * _executionPlan.Settings.Concurrency;
+
+                _logger.Info("LoadWorkerActor '{0}' starting. Expected batches: {1}, Expected total requests: {2}, MaxIterations: {3}",
+                    workerName, expectedBatches, expectedTotalRequests,
+                    _executionPlan.Settings.MaxIterations?.ToString() ?? "unlimited");
+
+                // Schedule duration timeout
+                _durationSchedule = Context.System.Scheduler.ScheduleTellOnceCancelable(
+                    _executionPlan.Settings.Duration,
+                    Self,
+                    DurationExpiredMessage.Instance,
+                    Self
+                );
+
+                // Schedule first batch immediately
+                Self.Tell(new ScheduleTickMessage(0));
+
+                Become(Running);
             });
         }
 
         /// <summary>
-        /// Core method that orchestrates the entire load test execution workflow.
-        /// Manages timing, batch processing, task coordination, and result collection.
-        /// Implements precise interval control and comprehensive error handling.
+        /// Running state — processes batch ticks and duration expiry.
         /// </summary>
-        private async Task<LoadResult> RunWorkAsync()
+        private void Running()
         {
-            // Extract actor name from the actor path for consistent logging and identification
-            // This provides a unique identifier for tracking this specific worker instance
+            Receive<ScheduleTickMessage>(msg => HandleTick(msg));
+            Receive<DurationExpiredMessage>(_ => HandleDurationExpired());
+        }
+
+        private void HandleTick(ScheduleTickMessage msg)
+        {
             var workerName = Self.Path.Name;
-            
-            // Notify the result collector that load test execution has begun
-            // This starts the timing clock and initializes result collection state
-            _resultCollector.Tell(new StartLoadMessage());
-            
-            // Create cancellation token that will automatically expire after the configured test duration
-            // This ensures the test stops exactly when specified, preventing runaway execution
-            using var cts = new CancellationTokenSource(_executionPlan.Settings.Duration);
+            var elapsedTime = DateTime.UtcNow - _startTime;
+            var expectedBatchStartTime = TimeSpan.FromMilliseconds(msg.BatchNumber * _executionPlan.Settings.Interval.TotalMilliseconds);
 
-            // Initialize collection to track all spawned tasks for proper cleanup and monitoring
-            // This allows us to wait for completion and track outstanding work
-            var runningTasks = new List<Task>();
+            var maxIterationsReached = _executionPlan.Settings.MaxIterations.HasValue &&
+                _totalIterationsSpawned >= _executionPlan.Settings.MaxIterations.Value;
 
-            // Track total iterations spawned for MaxIterations support
-            var totalIterationsSpawned = 0;
-
-            // Calculate the expected number of batches based on test duration and interval
-            // Used for capacity planning and progress monitoring throughout the test
-            var expectedBatches = (int)Math.Ceiling(_executionPlan.Settings.Duration.TotalMilliseconds / _executionPlan.Settings.Interval.TotalMilliseconds);
-
-            // Calculate total expected requests for resource planning and validation
-            // If MaxIterations is set, use that as the expected total
-            var expectedTotalRequests = _executionPlan.Settings.MaxIterations ??
-                expectedBatches * _executionPlan.Settings.Concurrency;
-
-            // Log test initialization with key parameters for monitoring and debugging
-            // Provides visibility into test scope and expected resource requirements
-            _logger.Info("LoadWorkerActor '{0}' starting. Expected batches: {1}, Expected total requests: {2}, MaxIterations: {3}",
-                workerName, expectedBatches, expectedTotalRequests,
-                _executionPlan.Settings.MaxIterations?.ToString() ?? "unlimited");
-
-            try
+            var shouldTerminate = maxIterationsReached || _executionPlan.Settings.TerminationMode switch
             {
-                // Capture the precise start time for accurate interval calculation
-                // This timestamp is used as the reference point for all batch timing
-                var startTime = DateTime.UtcNow;
-                
-                // Initialize batch counter for tracking progress and logging purposes
-                // Each batch represents one interval cycle with the configured concurrency
-                var batchNumber = 0;
+                TerminationMode.Duration => elapsedTime >= _executionPlan.Settings.Duration,
+                TerminationMode.CompleteCurrentInterval =>
+                    expectedBatchStartTime >= _executionPlan.Settings.Duration,
+                TerminationMode.StrictDuration => elapsedTime >= _executionPlan.Settings.Duration,
+                _ => elapsedTime >= _executionPlan.Settings.Duration
+            };
 
-                // Main execution loop - continue until cancellation token is triggered or duration expires
-                // This loop implements the core load generation pattern with precise timing
-                while (!cts.Token.IsCancellationRequested)
-                {
-                    // Capture current time for elapsed time calculation and timing accuracy
-                    // Used to determine if we're on schedule and calculate precise delays
-                    var currentTime = DateTime.UtcNow;
-                    var elapsedTime = currentTime - startTime;
-                    
-                    // Calculate the theoretical time when this batch should have started
-                    // This is used for timing accuracy and detecting schedule drift
-                    var expectedBatchStartTime = TimeSpan.FromMilliseconds(batchNumber * _executionPlan.Settings.Interval.TotalMilliseconds);
-                    
-                    // Check if MaxIterations limit has been reached
-                    var maxIterationsReached = _executionPlan.Settings.MaxIterations.HasValue &&
-                        totalIterationsSpawned >= _executionPlan.Settings.MaxIterations.Value;
-
-                    // Apply termination mode logic to determine when to stop creating new batches
-                    var shouldTerminate = maxIterationsReached || _executionPlan.Settings.TerminationMode switch
-                    {
-                        TerminationMode.Duration => elapsedTime >= _executionPlan.Settings.Duration,
-                        TerminationMode.CompleteCurrentInterval =>
-                            expectedBatchStartTime >= _executionPlan.Settings.Duration,
-                        TerminationMode.StrictDuration => elapsedTime >= _executionPlan.Settings.Duration,
-                        _ => elapsedTime >= _executionPlan.Settings.Duration
-                    };
-
-                    if (shouldTerminate)
-                    {
-                        _logger.Debug("LoadWorkerActor '{0}' terminating: mode={1}, elapsed={2:F2}ms, duration={3:F2}ms, batch={4}", 
-                            workerName, _executionPlan.Settings.TerminationMode, elapsedTime.TotalMilliseconds, 
-                            _executionPlan.Settings.Duration.TotalMilliseconds, batchNumber + 1);
-                        break;
-                    }
-
-                    // Initialize collection for tracking tasks within this specific batch
-                    // Allows for batch-level monitoring and debugging capabilities
-                    var batchTasks = new List<Task>();
-
-                    // Calculate how many iterations to spawn in this batch
-                    // If MaxIterations is set, only spawn remaining iterations
-                    var iterationsThisBatch = _executionPlan.Settings.Concurrency;
-                    if (_executionPlan.Settings.MaxIterations.HasValue)
-                    {
-                        var remainingIterations = _executionPlan.Settings.MaxIterations.Value - totalIterationsSpawned;
-                        iterationsThisBatch = Math.Min(iterationsThisBatch, remainingIterations);
-                    }
-
-                    // Create the calculated number of concurrent tasks for this batch
-                    // Each task represents one execution of the test action
-                    for (int i = 0; i < iterationsThisBatch; i++)
-                    {
-                        // Create and start a new task for executing the test action
-                        // Each task runs independently but is tracked for completion
-                        var task = ExecuteActionAsync(workerName, cts.Token);
-                        batchTasks.Add(task);
-                        runningTasks.Add(task);
-                        totalIterationsSpawned++;
-                    }
-
-                    // Log detailed batch information for debugging and monitoring
-                    // Includes timing accuracy metrics to detect and diagnose scheduling issues
-                    _logger.Debug("[{0}] Batch {1} started at {2:F2}ms (expected: {3:F2}ms). Tasks in batch: {4}", 
-                        workerName, batchNumber + 1, elapsedTime.TotalMilliseconds, 
-                        expectedBatchStartTime.TotalMilliseconds, batchTasks.Count);
-
-                    // Clean up completed tasks to prevent memory accumulation over long tests
-                    // This prevents the task list from growing unboundedly during extended execution
-                    runningTasks.RemoveAll(t => t.IsCompleted);
-
-                    // Increment batch counter for next iteration and timing calculations
-                    // This drives the interval calculation for the subsequent batch
-                    batchNumber++;
-
-                    // Calculate the precise time when the next batch should start
-                    // This maintains accurate timing regardless of execution delays
-                    var nextBatchStartTime = TimeSpan.FromMilliseconds(batchNumber * _executionPlan.Settings.Interval.TotalMilliseconds);
-                    var timeUntilNextBatch = startTime.Add(nextBatchStartTime) - DateTime.UtcNow;
-
-                    // Detect and handle schedule drift - when execution falls behind the intended timing
-                    // This is critical for maintaining consistent load patterns
-                    if (timeUntilNextBatch <= TimeSpan.Zero)
-                    {
-                        // Log warning about timing drift but continue immediately
-                        // This helps identify performance bottlenecks or resource constraints
-                        _logger.Warning("[{0}] Running behind schedule. Next batch should have started {1:F2}ms ago", 
-                            workerName, -timeUntilNextBatch.TotalMilliseconds);
-                    }
-                    else if (!cts.Token.IsCancellationRequested && elapsedTime.Add(timeUntilNextBatch) < _executionPlan.Settings.Duration)
-                    {
-                        // Wait until the precise time for the next batch to start
-                        // This implements accurate interval timing for consistent load generation
-                        try
-                        {
-                            // Use cancellation token to allow early termination during delay
-                            await Task.Delay(timeUntilNextBatch, cts.Token);
-                        }
-                        catch (TaskCanceledException)
-                        {
-                            // Expected exception when test duration expires during delay
-                            // This is the normal path for test completion
-                            break;
-                        }
-                    }
-                    else
-                    {
-                        // Exit condition: we've reached the end of the configured test duration
-                        // This ensures we don't start new batches beyond the intended test time
-                        break;
-                    }
-                }
-            }
-            catch (Exception ex)
+            if (shouldTerminate)
             {
-                // Handle and log any unexpected errors that occur during load test execution
-                // This provides debugging information while allowing graceful degradation
-                _logger.Error(ex, "LoadWorkerActor '{0}' encountered an unexpected error.", workerName);
-            }
-            finally
-            {
-                var incompleteTasks = runningTasks.Where(t => !t.IsCompleted).ToList();
-                _logger.Info("LoadWorkerActor '{0}' finished spawning tasks. Waiting for {1} in-flight requests to complete.", 
-                    workerName, incompleteTasks.Count);
-
-                if (incompleteTasks.Any())
-                {
-                    try
-                    {
-                        // Use configurable grace period instead of hardcoded timeout
-                        var gracePeriod = _executionPlan.Settings.EffectiveGracefulStopTimeout;
-                        
-                        _logger.Info("LoadWorkerActor '{0}' allowing {1:F1}s grace period for in-flight requests (mode: {2}).", 
-                            workerName, gracePeriod.TotalSeconds, _executionPlan.Settings.TerminationMode);
-
-                        var allTasks = Task.WhenAll(incompleteTasks);
-                        var timeoutTask = Task.Delay(gracePeriod);
-                        var completed = await Task.WhenAny(allTasks, timeoutTask);
-                        
-                        if (completed == allTasks)
-                        {
-                            _logger.Info("LoadWorkerActor '{0}' - all {1} in-flight requests completed successfully.", 
-                                workerName, incompleteTasks.Count);
-                        }
-                        else
-                        {
-                            var stillRunning = incompleteTasks.Count(t => !t.IsCompleted);
-                            _logger.Warning("LoadWorkerActor '{0}' - {1} of {2} requests still in-flight after {3:F1}s grace period.", 
-                                workerName, stillRunning, incompleteTasks.Count, gracePeriod.TotalSeconds);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.Warning("LoadWorkerActor '{0}' error during graceful stop: {1}", workerName, ex.Message);
-                    }
-                }
-                else
-                {
-                    _logger.Info("LoadWorkerActor '{0}' - no in-flight requests to wait for.", workerName);
-                }
-                
-                _logger.Info("LoadWorkerActor '{0}' completed load testing phase.", workerName);
+                _logger.Debug("LoadWorkerActor '{0}' terminating: mode={1}, elapsed={2:F2}ms, duration={3:F2}ms, batch={4}",
+                    workerName, _executionPlan.Settings.TerminationMode, elapsedTime.TotalMilliseconds,
+                    _executionPlan.Settings.Duration.TotalMilliseconds, msg.BatchNumber + 1);
+                HandleDurationExpired();
+                return;
             }
 
-            // Request the final aggregated results from the result collector actor
-            // This triggers result calculation and returns comprehensive performance metrics
-            // Use adaptive timeout based on test duration for CI environments
+            var iterationsThisBatch = _executionPlan.Settings.Concurrency;
+            if (_executionPlan.Settings.MaxIterations.HasValue)
+            {
+                var remaining = _executionPlan.Settings.MaxIterations.Value - _totalIterationsSpawned;
+                iterationsThisBatch = Math.Min(iterationsThisBatch, remaining);
+            }
+
+            for (int i = 0; i < iterationsThisBatch; i++)
+            {
+                var task = ExecuteActionAsync(workerName);
+                _runningTasks.Add(task);
+                _totalIterationsSpawned++;
+            }
+
+            _logger.Debug("[{0}] Batch {1} started at {2:F2}ms (expected: {3:F2}ms). Tasks in batch: {4}",
+                workerName, msg.BatchNumber + 1, elapsedTime.TotalMilliseconds,
+                expectedBatchStartTime.TotalMilliseconds, iterationsThisBatch);
+
+            // Clean up completed tasks
+            _runningTasks.RemoveAll(t => t.IsCompleted);
+
+            var nextBatchNumber = msg.BatchNumber + 1;
+            var nextBatchTime = _startTime.AddMilliseconds(nextBatchNumber * _executionPlan.Settings.Interval.TotalMilliseconds);
+            var delay = nextBatchTime - DateTime.UtcNow;
+
+            if (delay <= TimeSpan.Zero)
+            {
+                _logger.Warning("[{0}] Running behind schedule. Next batch should have started {1:F2}ms ago",
+                    workerName, -delay.TotalMilliseconds);
+                delay = TimeSpan.Zero;
+            }
+
+            // Schedule next tick via Akka Scheduler
+            _tickSchedule = Context.System.Scheduler.ScheduleTellOnceCancelable(
+                delay,
+                Self,
+                new ScheduleTickMessage(nextBatchNumber),
+                Self
+            );
+        }
+
+        private void HandleDurationExpired()
+        {
+            _tickSchedule.Cancel();
+            _durationSchedule.Cancel();
+
+            var workerName = Self.Path.Name;
+            var incompleteTasks = _runningTasks.Where(t => !t.IsCompleted).ToList();
+
+            _logger.Info("LoadWorkerActor '{0}' finished spawning tasks. Waiting for {1} in-flight requests to complete.",
+                workerName, incompleteTasks.Count);
+
+            if (!incompleteTasks.Any())
+            {
+                _logger.Info("LoadWorkerActor '{0}' - no in-flight requests to wait for.", workerName);
+                CollectAndReplyResult();
+                return;
+            }
+
+            var gracePeriod = _executionPlan.Settings.EffectiveGracefulStopTimeout;
+            _logger.Info("LoadWorkerActor '{0}' allowing {1:F1}s grace period for in-flight requests (mode: {2}).",
+                workerName, gracePeriod.TotalSeconds, _executionPlan.Settings.TerminationMode);
+
+            // Schedule grace period timeout
+            Context.System.Scheduler.ScheduleTellOnceCancelable(
+                gracePeriod,
+                Self,
+                GracePeriodExpiredMessage.Instance,
+                Self
+            );
+
+            Become(Stopping);
+        }
+
+        /// <summary>
+        /// Stopping state — waiting for in-flight tasks or grace period expiry.
+        /// </summary>
+        private void Stopping()
+        {
+            Receive<GracePeriodExpiredMessage>(_ =>
+            {
+                var workerName = Self.Path.Name;
+                var stillRunning = _runningTasks.Count(t => !t.IsCompleted);
+                if (stillRunning > 0)
+                {
+                    _logger.Warning("LoadWorkerActor '{0}' - {1} requests still in-flight after grace period.",
+                        workerName, stillRunning);
+                }
+                CollectAndReplyResult();
+            });
+
+            // Ignore stale messages
+            Receive<ScheduleTickMessage>(_ => { });
+            Receive<DurationExpiredMessage>(_ => { });
+        }
+
+        private void CollectAndReplyResult()
+        {
+            var workerName = Self.Path.Name;
+            _logger.Info("LoadWorkerActor '{0}' completed load testing phase.", workerName);
+
             var resultTimeout = TimeSpan.FromSeconds(Math.Max(30, _executionPlan.Settings.Duration.TotalSeconds / 2));
-            var finalResult = await _resultCollector.Ask<LoadResult>(
-                new GetLoadResultMessage(), resultTimeout);
-
-            // Return the final consolidated results
-            // This completes the actor communication chain and provides results to the caller
-            return finalResult;
+            _resultCollector.Ask<LoadResult>(new GetLoadResultMessage(), resultTimeout)
+                .ContinueWith(task =>
+                {
+                    if (task.IsFaulted)
+                    {
+                        _logger.Error(task.Exception, "LoadWorkerActor failed to collect results");
+                        return new LoadResult
+                        {
+                            ScenarioName = _executionPlan.Name,
+                            Success = 0,
+                            Failure = 1,
+                            Total = 1,
+                            Time = 0,
+                            RequestsPerSecond = 0,
+                            AverageLatency = 0
+                        };
+                    }
+                    return task.Result;
+                })
+                .PipeTo(_replyTo);
         }
 
         /// <summary>
         /// Executes a single test action with precise timing measurement and error handling.
-        /// Reports results to the result collector and handles both success and failure scenarios.
-        /// Implements comprehensive latency tracking and exception management.
         /// </summary>
-        /// <param name="workerName">Identifier for this worker instance for logging purposes</param>
-        /// <param name="cancellationToken">Token to allow early termination of the action</param>
-        private async Task ExecuteActionAsync(string workerName, CancellationToken cancellationToken)
+        private async Task ExecuteActionAsync(string workerName)
         {
             try
             {
-                // Notify result collector that a new request is starting
-                // This is used for tracking in-flight requests and calculating accurate throughput
                 _resultCollector.Tell(new RequestStartedMessage());
-                
-                // Create high-precision stopwatch for accurate latency measurement
-                // Stopwatch provides the most accurate timing available on the platform
-                var stopwatch = Stopwatch.StartNew();
-                
-                // Execute the actual test action and capture the result
-                // This is the user-defined action that represents the workload being tested
-                bool result = await _executionPlan.Action!();
-                
-                // Stop timing immediately after action completion for accuracy
-                // Minimizes measurement overhead in the latency calculation
-                stopwatch.Stop();
-                
-                // Convert elapsed time to milliseconds for standard latency reporting
-                // Milliseconds provide appropriate precision for most performance scenarios
-                var latency = stopwatch.Elapsed.TotalMilliseconds;
 
-                // Send the test result and measured latency to the result collector
-                // This data is aggregated for final performance metrics and percentile calculations
+                var stopwatch = Stopwatch.StartNew();
+                bool result = await _executionPlan.Action!();
+                stopwatch.Stop();
+
+                var latency = stopwatch.Elapsed.TotalMilliseconds;
                 _resultCollector.Tell(new StepResultMessage(result, latency));
 
-                // Log detailed execution information for debugging and monitoring
-                // Includes both the success/failure status and precise latency measurement
-                _logger.Debug("[{0}] Task completed - Result: {1}, Latency: {2:F2} ms", 
+                _logger.Debug("[{0}] Task completed - Result: {1}, Latency: {2:F2} ms",
                     workerName, result, latency);
             }
             catch (Exception ex)
             {
-                // Handle any exception that occurs during test action execution
-                // Report as failure with zero latency since timing is not meaningful
                 _resultCollector.Tell(new StepResultMessage(false, 0));
-                
-                // Log the error with full exception details for debugging
-                // This helps identify issues with the test action or environment
                 _logger.Error(ex, "[{0}] Task failed with error", workerName);
             }
+        }
+
+        /// <inheritdoc/>
+        protected override void PostStop()
+        {
+            _tickSchedule.Cancel();
+            _durationSchedule.Cancel();
+            base.PostStop();
         }
     }
 }
