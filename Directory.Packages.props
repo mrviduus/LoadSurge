@@ -9,7 +9,7 @@
   <!-- Package Version Management -->
   <ItemGroup Label="Core Framework Dependencies">
     <!-- Akka.NET Actor Framework -->
-    <PackageVersion Include="Akka" Version="1.5.63" />
+    <PackageVersion Include="Akka" Version="1.5.65" />
     <!-- NetStandard 2.0 compatibility packages -->
     <PackageVersion Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.5" />
     <PackageVersion Include="System.Threading.Channels" Version="10.0.5" />
@@ -25,7 +25,7 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageVersion>
     <!-- Microsoft Testing Platform -->
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.3.0" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.4.0" />
   </ItemGroup>
   <ItemGroup Label="Development and Build Tools">
     <!-- Source Link for GitHub - Enables debugging of NuGet package source code -->
