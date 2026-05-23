@@ -9,10 +9,10 @@
   <!-- Package Version Management -->
   <ItemGroup Label="Core Framework Dependencies">
     <!-- Akka.NET Actor Framework -->
-    <PackageVersion Include="Akka" Version="1.5.67" />
+    <PackageVersion Include="Akka" Version="1.5.68" />
     <!-- NetStandard 2.0 compatibility packages -->
-    <PackageVersion Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.7" />
-    <PackageVersion Include="System.Threading.Channels" Version="10.0.7" />
+    <PackageVersion Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.8" />
+    <PackageVersion Include="System.Threading.Channels" Version="10.0.8" />
   </ItemGroup>
   <ItemGroup Label="Testing Dependencies">
     <!-- xUnit v3 Core Dependencies -->
@@ -29,7 +29,7 @@
   </ItemGroup>
   <ItemGroup Label="Development and Build Tools">
     <!-- Source Link for GitHub - Enables debugging of NuGet package source code -->
-    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.203">
+    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.300">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
     </PackageVersion>
