@@ -158,6 +158,27 @@ result.Percentile95Latency // P95 latency (ms)
 result.Percentile99Latency // P99 latency (ms)
 ```
 
+## Benchmarks
+
+BenchmarkDotNet v0.15.8, Apple M4 (10 cores), .NET 8.0.22. Reproduce: `dotnet run -c Release --project benchmarks/LoadSurge.Benchmarks`.
+
+Engine overhead, 1 s run with a no-op action (100 ms interval):
+
+| Concurrency per interval | Iterations | Wall clock | Allocated | Per iteration |
+|---|---|---|---|---|
+| 1,000 | 10,000 | 1.001 s | 2.6 MB | ~260 B |
+| 10,000 | 100,000 | 1.005 s | 26 MB | ~260 B |
+
+Metrics hot path (per call, 0 B allocated):
+
+| Operation | Mean |
+|---|---|
+| `RequestStarted` + `RecordResult` | 6.7 ns |
+| `RecordResult` (failure) | 5.7 ns |
+| `InFlight` read | 0.11 ns |
+
+Overhead is ~1 ms (1k) and ~5 ms (10k) over the target duration, so the generator stays out of the way of what you measure.
+
 ## Samples
 
 Runnable offline examples: `dotnet run --project samples/LoadSurge.Samples`
