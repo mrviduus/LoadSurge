@@ -243,6 +243,34 @@ namespace LoadSurge.Tests.Unit
         }
 
         [Fact]
+        public async Task Throwing_Legacy_Action_With_Timeout_Is_A_Failure_With_Latency()
+        {
+            // Arrange - fault after real work, inside the timeout window.
+            var settings = new LoadSettings
+            {
+                Concurrency = 1,
+                Interval = TimeSpan.FromMilliseconds(100),
+                Duration = TimeSpan.FromSeconds(5),
+                MaxIterations = 3,
+                RequestTimeout = TimeSpan.FromSeconds(2)
+            };
+            var plan = CreatePlan("throwing-legacy-timeout", settings, async () =>
+            {
+                await Task.Delay(50);
+                throw new InvalidOperationException("boom");
+            });
+
+            // Act
+            var result = await LoadEngine.RunAsync(plan, new LoadWorkerConfiguration(), TestContext.Current.CancellationToken);
+
+            // Assert - counted, not crashed; latency is the ~50ms of work, not a timeout.
+            Assert.Equal(3, result.Failure);
+            Assert.Equal(0, result.RequestsInFlight);
+            Assert.True(result.MaxFailureLatency >= 45 && result.MaxFailureLatency < 2000,
+                $"Expected ~50ms failure latency, got {result.MaxFailureLatency}");
+        }
+
+        [Fact]
         public async Task IncludeQueueTimeInLatency_Adds_Queue_Delay_To_Latency()
         {
             // Arrange - sync-blocking actions outnumber pool threads, so later ones queue (issue #39).

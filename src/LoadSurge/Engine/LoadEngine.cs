@@ -242,22 +242,26 @@ namespace LoadSurge.Engine
             }
         }
 
+        // Task.Delay can wake marginally before the slot, so an iteration may start before
+        // scheduledAt: clamp instead of reporting negative queue time.
         private static double QueueTimeMs(long scheduledAt, long startedAt) =>
-            (startedAt - scheduledAt) * TimestampToMs;
+            Math.Max(0, startedAt - scheduledAt) * TimestampToMs;
 
         /// <summary>
         /// Execution latency up to now; with IncludeQueueTimeInLatency (opt-in coordinated-omission
-        /// correction) it is measured from the scheduled slot instead of the execution start.
+        /// correction) it is measured from the scheduled slot instead of the execution start
+        /// (or from the start, if it was marginally early, so latency never undercounts execution).
         /// </summary>
         private static double LatencyMs(LoadExecutionPlan plan, long scheduledAt, long startedAt) =>
-            (Stopwatch.GetTimestamp() - (plan.Settings.IncludeQueueTimeInLatency ? scheduledAt : startedAt)) * TimestampToMs;
+            (Stopwatch.GetTimestamp() - (plan.Settings.IncludeQueueTimeInLatency ? Math.Min(scheduledAt, startedAt) : startedAt)) * TimestampToMs;
 
         /// <summary>
         /// Races the legacy (token-less) action against a timeout. On timeout the iteration is
         /// recorded as a failure; the underlying task keeps running unobserved, so its eventual
         /// fault is observed to avoid UnobservedTaskException. Prefer ActionWithCancellation,
         /// which aborts the work itself instead of leaking it.
-        /// Returns the outcome and the timestamp at which the action actually began.
+        /// Returns the outcome and the timestamp at which the action actually began. Never throws:
+        /// a faulted action is a failure.
         /// </summary>
         private static async Task<(bool IsSuccess, long StartedAt)> ExecuteWithTimeoutAsync(Func<Task<bool>> action, TimeSpan timeout)
         {
@@ -280,7 +284,16 @@ namespace LoadSurge.Engine
                 if (winner == actionTask)
                 {
                     timeoutCts.Cancel(); // release the timer
-                    return (await actionTask.ConfigureAwait(false), startedAt);
+                    try
+                    {
+                        return (await actionTask.ConfigureAwait(false), startedAt);
+                    }
+                    catch
+                    {
+                        // Swallowed here, not in ExecuteOneAsync, so the real start time survives
+                        // and the inner hop wait stays queue time, not latency.
+                        return (false, startedAt);
+                    }
                 }
 
                 _ = actionTask.ContinueWith(
