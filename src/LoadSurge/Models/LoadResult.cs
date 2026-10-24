@@ -128,8 +128,10 @@ namespace LoadSurge.Models
 		public double RequestsPerSecond { get; set; }
 		
 		/// <summary>
-		/// Gets or sets the average time requests spent waiting in queue before execution.
-		/// Indicates system saturation and resource contention levels.
+		/// Gets or sets the average time requests spent waiting in queue before execution, from the
+		/// batch's planned slot to execution start (ms). Indicates system saturation and resource contention.
+		/// With a legacy Action and RequestTimeout it also includes one extra thread-pool hop, so
+		/// compare queue times only between runs with the same action type and timeout setting.
 		/// </summary>
 		public double AvgQueueTime { get; set; }
 		

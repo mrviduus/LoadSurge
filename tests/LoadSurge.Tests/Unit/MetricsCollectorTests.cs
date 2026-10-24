@@ -104,7 +104,7 @@ namespace LoadSurge.Tests.Unit
 
             // Act & Assert - the MaxInFlight cap must see queued work
             Assert.Equal(2, collector.InFlight);
-            Assert.Equal(0, collector.Started);
+            Assert.Equal(0, collector.BuildResult().RequestsStarted);
         }
 
         [Fact]

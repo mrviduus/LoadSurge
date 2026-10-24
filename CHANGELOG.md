@@ -30,7 +30,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `RequestTimeout`, the extra thread-pool hop counts as queue time and the timeout clock starts
   only when the action actually begins.
 - Iterations ended by run cancellation still count as failures but are excluded from
-  `AverageFailureLatency` / `MaxFailureLatency`.
+  `AverageFailureLatency` / `MaxFailureLatency`: an `OperationCanceledException` from run
+  cancellation, or an `ActionWithCancellation` returning `false` after the run was cancelled.
+  Other exceptions during cancellation keep their latency. Limitation: a genuine SUT failure
+  returned as `false` at the moment of cancellation is indistinguishable and loses its latency.
 - Build moves to the .NET 10 SDK (`global.json` pins `10.0.100`). Target frameworks are
   unchanged (`netstandard2.0;net8.0`), so the shipped package is not affected.
 - `dotnet test` opts into the Microsoft.Testing.Platform runner: the .NET 10 SDK dropped the

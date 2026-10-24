@@ -202,11 +202,12 @@ namespace LoadSurge.Engine
             // Mutable: the legacy timeout path moves it to when the action really began,
             // so its extra thread-pool hop counts as queue time, not latency.
             var startedAt = Stopwatch.GetTimestamp();
+            bool isSuccess;
+            var cancelledByRun = false;
 
             try
             {
                 var timeout = plan.Settings.RequestTimeout;
-                bool isSuccess;
 
                 if (plan.ActionWithCancellation != null)
                 {
@@ -218,6 +219,10 @@ namespace LoadSurge.Engine
                             requestCts.CancelAfter(timeout.Value);
                         isSuccess = await plan.ActionWithCancellation(requestCts.Token).ConfigureAwait(false);
                     }
+
+                    // An action that catches the cancellation and returns false (the recommended
+                    // try/catch pattern) was stopped by the harness, not failed by the SUT.
+                    cancelledByRun = !isSuccess && cancellationToken.IsCancellationRequested;
                 }
                 else if (timeout.HasValue)
                 {
@@ -227,19 +232,25 @@ namespace LoadSurge.Engine
                 {
                     isSuccess = await plan.Action!().ConfigureAwait(false);
                 }
-
-                collector.RecordResult(isSuccess, LatencyMs(plan, scheduledAt, startedAt), QueueTimeMs(scheduledAt, startedAt));
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                // Run cancellation is the harness stopping, not SUT behavior: counted without latency.
+                isSuccess = false;
+                cancelledByRun = true;
             }
             catch
             {
-                // A throwing action (including OperationCanceledException on timeout) is a failure;
-                // its latency feeds the failure-latency stats only. Run cancellation is the harness
-                // stopping, not SUT behavior, so it is counted without latency.
-                if (cancellationToken.IsCancellationRequested)
-                    collector.RecordCancelled(QueueTimeMs(scheduledAt, startedAt));
-                else
-                    collector.RecordResult(false, LatencyMs(plan, scheduledAt, startedAt), QueueTimeMs(scheduledAt, startedAt));
+                // Any other throw (including OperationCanceledException on per-request timeout)
+                // is a real failure; its latency feeds the failure-latency stats only.
+                isSuccess = false;
             }
+
+            // Recorded outside the try: a throwing record must never be recorded a second time.
+            if (cancelledByRun)
+                collector.RecordCancelled(QueueTimeMs(scheduledAt, startedAt));
+            else
+                collector.RecordResult(isSuccess, LatencyMs(plan, scheduledAt, startedAt), QueueTimeMs(scheduledAt, startedAt));
         }
 
         // Task.Delay can wake marginally before the slot, so an iteration may start before

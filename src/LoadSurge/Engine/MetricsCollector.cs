@@ -149,9 +149,6 @@ namespace LoadSurge.Engine
         /// <summary>Requests scheduled but not yet completed (queued or executing). Used by the engine for the MaxInFlight cap.</summary>
         public int InFlight => Volatile.Read(ref _inFlight);
 
-        /// <summary>Total requests started so far. Used by the engine for MaxIterations accounting.</summary>
-        public int Started => Volatile.Read(ref _started);
-
         /// <summary>
         /// Cheap point-in-time snapshot for live progress reporting.
         /// Takes each stripe lock briefly; intended for ~1 Hz cadence, not the hot path.
