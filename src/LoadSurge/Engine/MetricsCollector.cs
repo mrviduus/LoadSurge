@@ -23,6 +23,7 @@ namespace LoadSurge.Engine
             public int Failure;
             public double FailureLatencySum;
             public double FailureLatencyMax;
+            public int FailureLatencyCount;
             public double QueueTimeSum;
             public double QueueTimeMax;
             public int QueueTimeCount;
@@ -95,17 +96,41 @@ namespace LoadSurge.Engine
                 {
                     stripe.Failure++;
                     stripe.FailureLatencySum += latencyMs;
+                    stripe.FailureLatencyCount++;
                     if (latencyMs > stripe.FailureLatencyMax)
                         stripe.FailureLatencyMax = latencyMs;
                 }
 
-                if (queueTimeMs > 0)
-                {
-                    stripe.QueueTimeSum += queueTimeMs;
-                    stripe.QueueTimeCount++;
-                    if (queueTimeMs > stripe.QueueTimeMax)
-                        stripe.QueueTimeMax = queueTimeMs;
-                }
+                AddQueueTime(stripe, queueTimeMs);
+            }
+        }
+
+        /// <summary>
+        /// Records a request ended by run cancellation: counted as a failure, but its latency is
+        /// excluded from failure-latency stats (it reflects when the harness stopped, not the SUT).
+        /// </summary>
+        /// <param name="queueTimeMs">Delay between scheduling and execution start, in milliseconds.</param>
+        public void RecordCancelled(double queueTimeMs = 0)
+        {
+            Interlocked.Decrement(ref _inFlight);
+
+            var stripe = _stripes[Environment.CurrentManagedThreadId & _stripeMask];
+            lock (stripe.Lock)
+            {
+                stripe.Failure++;
+                AddQueueTime(stripe, queueTimeMs);
+            }
+        }
+
+        // Caller holds stripe.Lock.
+        private static void AddQueueTime(Stripe stripe, double queueTimeMs)
+        {
+            if (queueTimeMs > 0)
+            {
+                stripe.QueueTimeSum += queueTimeMs;
+                stripe.QueueTimeCount++;
+                if (queueTimeMs > stripe.QueueTimeMax)
+                    stripe.QueueTimeMax = queueTimeMs;
             }
         }
 
@@ -171,7 +196,7 @@ namespace LoadSurge.Engine
                 : (Stopwatch.GetTimestamp() - _startTimestamp) / (double)Stopwatch.Frequency;
 
             // Merge stripes: counters plus one flat latency array for sorting.
-            int success = 0, failure = 0, queueCount = 0, latencyCount = 0;
+            int success = 0, failure = 0, queueCount = 0, latencyCount = 0, failureLatencyCount = 0;
             double queueSum = 0, queueMax = 0, failureLatencySum = 0, failureLatencyMax = 0;
             foreach (var stripe in _stripes)
             {
@@ -180,6 +205,7 @@ namespace LoadSurge.Engine
                     success += stripe.Success;
                     failure += stripe.Failure;
                     failureLatencySum += stripe.FailureLatencySum;
+                    failureLatencyCount += stripe.FailureLatencyCount;
                     if (stripe.FailureLatencyMax > failureLatencyMax)
                         failureLatencyMax = stripe.FailureLatencyMax;
                     queueSum += stripe.QueueTimeSum;
@@ -224,7 +250,7 @@ namespace LoadSurge.Engine
                 MedianLatency = Percentile(latencies, 50),
                 Percentile95Latency = Percentile(latencies, 95),
                 Percentile99Latency = Percentile(latencies, 99),
-                AverageFailureLatency = failure > 0 ? failureLatencySum / failure : 0,
+                AverageFailureLatency = failureLatencyCount > 0 ? failureLatencySum / failureLatencyCount : 0,
                 MaxFailureLatency = failureLatencyMax,
 
                 RequestsStarted = started,

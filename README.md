@@ -117,7 +117,8 @@ var plan = new LoadExecutionPlan
     Settings = new LoadSettings
     {
         // ...
-        RequestTimeout = TimeSpan.FromSeconds(5) // hung requests counted as failures
+        RequestTimeout = TimeSpan.FromSeconds(5), // hung requests counted as failures
+        IncludeQueueTimeInLatency = true          // opt-in: latency from scheduled slot (coordinated-omission correction)
     },
     // Preferred over Action: the token fires on RequestTimeout and run cancellation,
     // so timed-out work is truly aborted instead of leaking in the background.
@@ -151,11 +152,13 @@ result.Total              // Total completed requests
 result.Success            // Successful requests
 result.Failure            // Failed requests (incl. timeouts)
 result.Dropped            // Iterations dropped by MaxInFlight cap
-result.RequestsInFlight   // Still executing when the test ended
+result.RequestsInFlight   // Scheduled but unfinished at test end (queued or executing)
 result.RequestsPerSecond  // Throughput
 result.AverageLatency     // Mean latency (ms)
 result.Percentile95Latency // P95 latency (ms)
 result.Percentile99Latency // P99 latency (ms)
+result.AverageFailureLatency // Mean latency of failures (ms); failures are excluded from the stats above
+result.MaxFailureLatency  // Max latency of failures (ms)
 ```
 
 ## Samples

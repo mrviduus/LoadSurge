@@ -43,7 +43,6 @@ namespace LoadSurge.Tests.Unit
             collector.MarkStarted();
 
             collector.RequestScheduled();
-
             collector.RequestStarted();
             collector.RecordResult(true, 10);
             collector.RequestScheduled();
@@ -114,9 +113,12 @@ namespace LoadSurge.Tests.Unit
             // Arrange (issue #38)
             var collector = new MetricsCollector("failure-latency");
             collector.MarkStarted();
-            collector.RecordResult(true, 5);
-            collector.RecordResult(false, 100);
-            collector.RecordResult(false, 300);
+            foreach (var (isSuccess, latency) in new[] { (true, 5.0), (false, 100.0), (false, 300.0) })
+            {
+                collector.RequestScheduled();
+                collector.RequestStarted();
+                collector.RecordResult(isSuccess, latency);
+            }
 
             // Act
             var result = collector.BuildResult();
@@ -125,6 +127,30 @@ namespace LoadSurge.Tests.Unit
             Assert.Equal(5, result.MaxLatency);
             Assert.Equal(200, result.AverageFailureLatency);
             Assert.Equal(300, result.MaxFailureLatency);
+            Assert.Equal(0, result.RequestsInFlight);
+        }
+
+        [Fact]
+        public void Cancelled_Request_Is_A_Failure_Without_Latency()
+        {
+            // Arrange - one real failure, one ended by run cancellation
+            var collector = new MetricsCollector("cancelled");
+            collector.MarkStarted();
+            collector.RequestScheduled();
+            collector.RequestStarted();
+            collector.RecordResult(false, 100);
+            collector.RequestScheduled();
+            collector.RequestStarted();
+            collector.RecordCancelled();
+
+            // Act
+            var result = collector.BuildResult();
+
+            // Assert - counted as failure, but harness-stop time does not skew failure latency
+            Assert.Equal(2, result.Failure);
+            Assert.Equal(100, result.AverageFailureLatency);
+            Assert.Equal(100, result.MaxFailureLatency);
+            Assert.Equal(0, result.RequestsInFlight);
         }
 
         [Fact]
@@ -135,7 +161,6 @@ namespace LoadSurge.Tests.Unit
             collector.MarkStarted();
 
             collector.RequestScheduled();
-
             collector.RequestStarted();
             collector.RecordResult(true, 1, queueTimeMs: 10);
             collector.RequestScheduled();

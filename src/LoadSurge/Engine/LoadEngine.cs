@@ -74,6 +74,10 @@ namespace LoadSurge.Engine
                 if (settings.MaxIterations.HasValue)
                     itemsThisBatch = Math.Min(itemsThisBatch, settings.MaxIterations.Value - executed);
 
+                // Queue time is measured from the planned slot, not the spawn moment, so scheduler
+                // lag (late timer wake-up, slow batch spawn) shows up in queue time and latency.
+                var slotTimestamp = runStart + (long)(expectedBatchStartMs / TimestampToMs);
+
                 for (var i = 0; i < itemsThisBatch; i++)
                 {
                     if (maxInFlight.HasValue && collector.InFlight >= maxInFlight.Value)
@@ -85,11 +89,10 @@ namespace LoadSurge.Engine
                     // Counted before Task.Run so queued-but-not-started iterations hit the cap.
                     // Only this loop increments in-flight, so check-then-increment cannot overshoot.
                     collector.RequestScheduled();
-                    var scheduledAt = Stopwatch.GetTimestamp();
                     // CancellationToken.None is deliberate: a spawned iteration must always run
                     // and record its outcome; run cancellation reaches the action via the token
                     // passed into ExecuteOneAsync instead.
-                    _ = Task.Run(() => ExecuteOneAsync(plan, collector, scheduledAt, cancellationToken), CancellationToken.None);
+                    _ = Task.Run(() => ExecuteOneAsync(plan, collector, slotTimestamp, cancellationToken), CancellationToken.None);
                     executed++;
                 }
 
@@ -196,10 +199,9 @@ namespace LoadSurge.Engine
             CancellationToken cancellationToken)
         {
             collector.RequestStarted();
+            // Mutable: the legacy timeout path moves it to when the action really began,
+            // so its extra thread-pool hop counts as queue time, not latency.
             var startedAt = Stopwatch.GetTimestamp();
-            var queueTimeMs = (startedAt - scheduledAt) * TimestampToMs;
-            // Opt-in coordinated-omission correction: measure from the scheduled moment.
-            var latencyOrigin = plan.Settings.IncludeQueueTimeInLatency ? scheduledAt : startedAt;
 
             try
             {
@@ -217,36 +219,60 @@ namespace LoadSurge.Engine
                         isSuccess = await plan.ActionWithCancellation(requestCts.Token).ConfigureAwait(false);
                     }
                 }
+                else if (timeout.HasValue)
+                {
+                    (isSuccess, startedAt) = await ExecuteWithTimeoutAsync(plan.Action!, timeout.Value).ConfigureAwait(false);
+                }
                 else
                 {
-                    isSuccess = timeout.HasValue
-                        ? await ExecuteWithTimeoutAsync(plan.Action!, timeout.Value).ConfigureAwait(false)
-                        : await plan.Action!().ConfigureAwait(false);
+                    isSuccess = await plan.Action!().ConfigureAwait(false);
                 }
 
-                var latencyMs = (Stopwatch.GetTimestamp() - latencyOrigin) * TimestampToMs;
-                collector.RecordResult(isSuccess, latencyMs, queueTimeMs);
+                collector.RecordResult(isSuccess, LatencyMs(plan, scheduledAt, startedAt), QueueTimeMs(scheduledAt, startedAt));
             }
             catch
             {
-                // A throwing action (including OperationCanceledException on timeout/cancel)
-                // is a failure; its latency feeds the failure-latency stats only.
-                var latencyMs = (Stopwatch.GetTimestamp() - latencyOrigin) * TimestampToMs;
-                collector.RecordResult(false, latencyMs, queueTimeMs);
+                // A throwing action (including OperationCanceledException on timeout) is a failure;
+                // its latency feeds the failure-latency stats only. Run cancellation is the harness
+                // stopping, not SUT behavior, so it is counted without latency.
+                if (cancellationToken.IsCancellationRequested)
+                    collector.RecordCancelled(QueueTimeMs(scheduledAt, startedAt));
+                else
+                    collector.RecordResult(false, LatencyMs(plan, scheduledAt, startedAt), QueueTimeMs(scheduledAt, startedAt));
             }
         }
+
+        private static double QueueTimeMs(long scheduledAt, long startedAt) =>
+            (startedAt - scheduledAt) * TimestampToMs;
+
+        /// <summary>
+        /// Execution latency up to now; with IncludeQueueTimeInLatency (opt-in coordinated-omission
+        /// correction) it is measured from the scheduled slot instead of the execution start.
+        /// </summary>
+        private static double LatencyMs(LoadExecutionPlan plan, long scheduledAt, long startedAt) =>
+            (Stopwatch.GetTimestamp() - (plan.Settings.IncludeQueueTimeInLatency ? scheduledAt : startedAt)) * TimestampToMs;
 
         /// <summary>
         /// Races the legacy (token-less) action against a timeout. On timeout the iteration is
         /// recorded as a failure; the underlying task keeps running unobserved, so its eventual
         /// fault is observed to avoid UnobservedTaskException. Prefer ActionWithCancellation,
         /// which aborts the work itself instead of leaking it.
+        /// Returns the outcome and the timestamp at which the action actually began.
         /// </summary>
-        private static async Task<bool> ExecuteWithTimeoutAsync(Func<Task<bool>> action, TimeSpan timeout)
+        private static async Task<(bool IsSuccess, long StartedAt)> ExecuteWithTimeoutAsync(Func<Task<bool>> action, TimeSpan timeout)
         {
             // Task.Run, not action(): an action that blocks before its first await would
             // otherwise run to completion before the timeout race even starts.
-            var actionTask = Task.Run(action);
+            // The timeout clock starts only once the action really begins, so thread-pool
+            // queueing never turns into a timeout for work that has not run yet.
+            var started = new TaskCompletionSource<long>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var actionTask = Task.Run(() =>
+            {
+                started.TrySetResult(Stopwatch.GetTimestamp());
+                return action();
+            });
+            var startedAt = await started.Task.ConfigureAwait(false);
+
             using (var timeoutCts = new CancellationTokenSource())
             {
                 var delayTask = Task.Delay(timeout, timeoutCts.Token);
@@ -254,7 +280,7 @@ namespace LoadSurge.Engine
                 if (winner == actionTask)
                 {
                     timeoutCts.Cancel(); // release the timer
-                    return await actionTask.ConfigureAwait(false);
+                    return (await actionTask.ConfigureAwait(false), startedAt);
                 }
 
                 _ = actionTask.ContinueWith(
@@ -262,7 +288,7 @@ namespace LoadSurge.Engine
                     CancellationToken.None,
                     TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
                     TaskScheduler.Default);
-                return false;
+                return (false, startedAt);
             }
         }
     }

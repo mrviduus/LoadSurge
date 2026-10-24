@@ -25,6 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - `RequestsInFlight` / `LoadProgress.InFlight` include iterations queued on the thread pool but
   not yet started (#36).
+- `AvgQueueTime` / `MaxQueueTime` are measured from the batch's planned slot, so scheduler lag
+  (late timer wake-up, slow batch spawn) is included. For a legacy `Action` with
+  `RequestTimeout`, the extra thread-pool hop counts as queue time and the timeout clock starts
+  only when the action actually begins.
+- Iterations ended by run cancellation still count as failures but are excluded from
+  `AverageFailureLatency` / `MaxFailureLatency`.
 - Build moves to the .NET 10 SDK (`global.json` pins `10.0.100`). Target frameworks are
   unchanged (`netstandard2.0;net8.0`), so the shipped package is not affected.
 - `dotnet test` opts into the Microsoft.Testing.Platform runner: the .NET 10 SDK dropped the

@@ -180,8 +180,9 @@ namespace LoadSurge.Tests.Unit
             Assert.True(wallClock.Elapsed < TimeSpan.FromSeconds(2),
                 $"StrictDuration must not wait for in-flight, took {wallClock.Elapsed}");
             Assert.True(result.RequestsInFlight > 0, "In-flight requests must be reported");
-            // In-flight also counts queued-but-not-started work, so it can exceed started - total.
-            Assert.True(result.Total + result.RequestsInFlight >= result.RequestsStarted);
+            // Every scheduled iteration is either finished or still in flight (queued or executing).
+            Assert.Equal(result.BatchesCompleted * settings.Concurrency - result.Dropped,
+                result.Total + result.RequestsInFlight);
         }
 
         [Fact]
