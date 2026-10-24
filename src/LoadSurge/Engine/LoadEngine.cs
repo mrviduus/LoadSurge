@@ -82,6 +82,9 @@ namespace LoadSurge.Engine
                         continue;
                     }
 
+                    // Counted before Task.Run so queued-but-not-started iterations hit the cap.
+                    // Only this loop increments in-flight, so check-then-increment cannot overshoot.
+                    collector.RequestScheduled();
                     var scheduledAt = Stopwatch.GetTimestamp();
                     // CancellationToken.None is deliberate: a spawned iteration must always run
                     // and record its outcome; run cancellation reaches the action via the token
@@ -195,6 +198,8 @@ namespace LoadSurge.Engine
             collector.RequestStarted();
             var startedAt = Stopwatch.GetTimestamp();
             var queueTimeMs = (startedAt - scheduledAt) * TimestampToMs;
+            // Opt-in coordinated-omission correction: measure from the scheduled moment.
+            var latencyOrigin = plan.Settings.IncludeQueueTimeInLatency ? scheduledAt : startedAt;
 
             try
             {
@@ -219,14 +224,15 @@ namespace LoadSurge.Engine
                         : await plan.Action!().ConfigureAwait(false);
                 }
 
-                var latencyMs = (Stopwatch.GetTimestamp() - startedAt) * TimestampToMs;
+                var latencyMs = (Stopwatch.GetTimestamp() - latencyOrigin) * TimestampToMs;
                 collector.RecordResult(isSuccess, latencyMs, queueTimeMs);
             }
             catch
             {
                 // A throwing action (including OperationCanceledException on timeout/cancel)
-                // is a failure; latency of failures is excluded from stats anyway.
-                collector.RecordResult(false, 0, queueTimeMs);
+                // is a failure; its latency feeds the failure-latency stats only.
+                var latencyMs = (Stopwatch.GetTimestamp() - latencyOrigin) * TimestampToMs;
+                collector.RecordResult(false, latencyMs, queueTimeMs);
             }
         }
 
@@ -238,7 +244,9 @@ namespace LoadSurge.Engine
         /// </summary>
         private static async Task<bool> ExecuteWithTimeoutAsync(Func<Task<bool>> action, TimeSpan timeout)
         {
-            var actionTask = action();
+            // Task.Run, not action(): an action that blocks before its first await would
+            // otherwise run to completion before the timeout race even starts.
+            var actionTask = Task.Run(action);
             using (var timeoutCts = new CancellationTokenSource())
             {
                 var delayTask = Task.Delay(timeout, timeoutCts.Token);

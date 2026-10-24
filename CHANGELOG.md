@@ -7,12 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `LoadResult.AverageFailureLatency` / `MaxFailureLatency` (ms): failures stay out of the
+  success latency stats but are no longer invisible; throwing/timed-out iterations record their
+  real elapsed time instead of 0 (#38).
+- `LoadSettings.IncludeQueueTimeInLatency` (default `false`): opt-in coordinated-omission
+  correction, latency measured from the scheduled moment (#39).
+
 ### Fixed
+- `MaxInFlight` now counts iterations from the moment they are scheduled, not when they start
+  executing: queued-but-not-started work no longer slips past the cap (#36).
+- `RequestTimeout` now fires for a legacy `Action` that blocks before its first `await` (#37).
 - The package no longer declares a dependency on `Microsoft.SourceLink.GitHub`: `PrivateAssets`
   on a central `PackageVersion` is ignored, so it leaked to every consumer. The reference is
   removed; the .NET 8+ SDK provides Source Link built in (symbols still map to GitHub sources).
 
 ### Changed
+- `RequestsInFlight` / `LoadProgress.InFlight` include iterations queued on the thread pool but
+  not yet started (#36).
 - Build moves to the .NET 10 SDK (`global.json` pins `10.0.100`). Target frameworks are
   unchanged (`netstandard2.0;net8.0`), so the shipped package is not affected.
 - `dotnet test` opts into the Microsoft.Testing.Platform runner: the .NET 10 SDK dropped the

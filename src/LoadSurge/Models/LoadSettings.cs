@@ -72,6 +72,14 @@ namespace LoadSurge.Models
         public TimeSpan? RequestTimeout { get; set; }
 
         /// <summary>
+        /// Gets or sets whether latency is measured from the iteration's scheduled moment instead of
+        /// its execution start, so thread-pool queueing delay is included (coordinated-omission
+        /// correction). Default false: latency covers execution only; queueing is reported
+        /// separately in AvgQueueTime/MaxQueueTime.
+        /// </summary>
+        public bool IncludeQueueTimeInLatency { get; set; }
+
+        /// <summary>
         /// Gets the effective graceful stop timeout, applying defaults if not specified.
         /// Implements industry standard calculations when null.
         /// Uses 30% of test duration, bounded between 5 seconds and 60 seconds.

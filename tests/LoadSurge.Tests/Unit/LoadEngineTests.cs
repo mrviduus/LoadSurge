@@ -180,7 +180,93 @@ namespace LoadSurge.Tests.Unit
             Assert.True(wallClock.Elapsed < TimeSpan.FromSeconds(2),
                 $"StrictDuration must not wait for in-flight, took {wallClock.Elapsed}");
             Assert.True(result.RequestsInFlight > 0, "In-flight requests must be reported");
-            Assert.Equal(result.RequestsStarted, result.Total + result.RequestsInFlight);
+            // In-flight also counts queued-but-not-started work, so it can exceed started - total.
+            Assert.True(result.Total + result.RequestsInFlight >= result.RequestsStarted);
+        }
+
+        [Fact]
+        public async Task MaxInFlight_Counts_Queued_Iterations_Within_A_Batch()
+        {
+            // Arrange - one batch of 50 is spawned in a tight loop before any task starts (issue #36).
+            // Counting in-flight at execution start let the whole batch through; the cap must hold.
+            var settings = new LoadSettings
+            {
+                Concurrency = 50,
+                Interval = TimeSpan.FromMilliseconds(100),
+                Duration = TimeSpan.FromMilliseconds(300),
+                TerminationMode = TerminationMode.StrictDuration
+            };
+            var plan = CreatePlan("max-in-flight-queued", settings, async () =>
+            {
+                await Task.Delay(1000);
+                return true;
+            });
+            var config = new LoadWorkerConfiguration { MaxInFlight = 5 };
+
+            // Act
+            var result = await LoadEngine.RunAsync(plan, config, TestContext.Current.CancellationToken);
+
+            // Assert - exactly 5 admitted (none finish within 300ms), the rest dropped.
+            Assert.Equal(5, result.RequestsInFlight + result.Total);
+            Assert.Equal(result.BatchesCompleted * 50 - 5, result.Dropped);
+        }
+
+        [Fact]
+        public async Task RequestTimeout_Fires_For_Legacy_Action_That_Blocks_Synchronously()
+        {
+            // Arrange - blocks before any await; the timeout race used to start only after it (issue #37).
+            var settings = new LoadSettings
+            {
+                Concurrency = 1,
+                Interval = TimeSpan.FromMilliseconds(100),
+                Duration = TimeSpan.FromSeconds(5),
+                MaxIterations = 1,
+                RequestTimeout = TimeSpan.FromMilliseconds(100)
+            };
+            var plan = CreatePlan("blocking-legacy-timeout", settings, () =>
+            {
+                Thread.Sleep(2000);
+                return Task.FromResult(true);
+            });
+            var wallClock = Stopwatch.StartNew();
+
+            // Act
+            var result = await LoadEngine.RunAsync(plan, new LoadWorkerConfiguration(), TestContext.Current.CancellationToken);
+            wallClock.Stop();
+
+            // Assert - timed out as a failure without waiting for the 2s block.
+            Assert.Equal(1, result.Failure);
+            Assert.True(wallClock.Elapsed < TimeSpan.FromMilliseconds(1500),
+                $"Timeout must not wait for the blocking call, took {wallClock.Elapsed}");
+            Assert.True(result.MaxFailureLatency >= 90, $"Failure latency must be recorded, got {result.MaxFailureLatency}");
+        }
+
+        [Fact]
+        public async Task IncludeQueueTimeInLatency_Adds_Queue_Delay_To_Latency()
+        {
+            // Arrange - sync-blocking actions outnumber pool threads, so later ones queue (issue #39).
+            var iterations = Environment.ProcessorCount * 3;
+            var settings = new LoadSettings
+            {
+                Concurrency = iterations,
+                Interval = TimeSpan.FromMilliseconds(100),
+                Duration = TimeSpan.FromSeconds(5),
+                MaxIterations = iterations,
+                IncludeQueueTimeInLatency = true
+            };
+            var plan = CreatePlan("queue-in-latency", settings, () =>
+            {
+                Thread.Sleep(100);
+                return Task.FromResult(true);
+            });
+
+            // Act
+            var result = await LoadEngine.RunAsync(plan, new LoadWorkerConfiguration(), TestContext.Current.CancellationToken);
+
+            // Assert - the most-queued iteration's latency covers its queue wait plus ~100ms work.
+            Assert.Equal(iterations, result.Success);
+            Assert.True(result.MaxLatency >= result.MaxQueueTime + 90,
+                $"Latency {result.MaxLatency}ms must include queue time {result.MaxQueueTime}ms");
         }
 
         [Fact]

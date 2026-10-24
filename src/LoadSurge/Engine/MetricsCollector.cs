@@ -10,7 +10,8 @@ namespace LoadSurge.Engine
     /// Lock-striped metrics accumulator for load test execution.
     /// Hot-path recording uses per-stripe locks (one stripe per CPU core) so concurrent
     /// tasks rarely contend. Aggregation into a LoadResult happens once, after the run.
-    /// Failed operations are counted but their latency is excluded from latency statistics.
+    /// Failed operations are counted but their latency is excluded from latency statistics;
+    /// it is aggregated separately (AverageFailureLatency / MaxFailureLatency).
     /// </summary>
     internal sealed class MetricsCollector
     {
@@ -20,6 +21,8 @@ namespace LoadSurge.Engine
             public readonly List<double> Latencies = new List<double>();
             public int Success;
             public int Failure;
+            public double FailureLatencySum;
+            public double FailureLatencyMax;
             public double QueueTimeSum;
             public double QueueTimeMax;
             public int QueueTimeCount;
@@ -52,11 +55,19 @@ namespace LoadSurge.Engine
             _startTimestamp = Stopwatch.GetTimestamp();
         }
 
+        /// <summary>
+        /// Records that a request was handed to the thread pool. Counts toward in-flight from here,
+        /// so iterations queued but not yet started are visible to the MaxInFlight cap.
+        /// </summary>
+        public void RequestScheduled()
+        {
+            Interlocked.Increment(ref _inFlight);
+        }
+
         /// <summary>Records that a request began executing. Samples memory every 1024th request.</summary>
         public void RequestStarted()
         {
             var started = Interlocked.Increment(ref _started);
-            Interlocked.Increment(ref _inFlight);
             if ((started & 1023) == 1)
                 SampleMemory();
         }
@@ -83,6 +94,9 @@ namespace LoadSurge.Engine
                 else
                 {
                     stripe.Failure++;
+                    stripe.FailureLatencySum += latencyMs;
+                    if (latencyMs > stripe.FailureLatencyMax)
+                        stripe.FailureLatencyMax = latencyMs;
                 }
 
                 if (queueTimeMs > 0)
@@ -107,7 +121,7 @@ namespace LoadSurge.Engine
             Interlocked.Increment(ref _batchesCompleted);
         }
 
-        /// <summary>Current number of requests executing right now. Used by the engine for the MaxInFlight cap.</summary>
+        /// <summary>Requests scheduled but not yet completed (queued or executing). Used by the engine for the MaxInFlight cap.</summary>
         public int InFlight => Volatile.Read(ref _inFlight);
 
         /// <summary>Total requests started so far. Used by the engine for MaxIterations accounting.</summary>
@@ -158,13 +172,16 @@ namespace LoadSurge.Engine
 
             // Merge stripes: counters plus one flat latency array for sorting.
             int success = 0, failure = 0, queueCount = 0, latencyCount = 0;
-            double queueSum = 0, queueMax = 0;
+            double queueSum = 0, queueMax = 0, failureLatencySum = 0, failureLatencyMax = 0;
             foreach (var stripe in _stripes)
             {
                 lock (stripe.Lock)
                 {
                     success += stripe.Success;
                     failure += stripe.Failure;
+                    failureLatencySum += stripe.FailureLatencySum;
+                    if (stripe.FailureLatencyMax > failureLatencyMax)
+                        failureLatencyMax = stripe.FailureLatencyMax;
                     queueSum += stripe.QueueTimeSum;
                     queueCount += stripe.QueueTimeCount;
                     if (stripe.QueueTimeMax > queueMax)
@@ -207,6 +224,8 @@ namespace LoadSurge.Engine
                 MedianLatency = Percentile(latencies, 50),
                 Percentile95Latency = Percentile(latencies, 95),
                 Percentile99Latency = Percentile(latencies, 99),
+                AverageFailureLatency = failure > 0 ? failureLatencySum / failure : 0,
+                MaxFailureLatency = failureLatencyMax,
 
                 RequestsStarted = started,
                 RequestsInFlight = Volatile.Read(ref _inFlight),

@@ -20,6 +20,7 @@ namespace LoadSurge.Benchmarks
             // Pre-size stripe lists so List growth does not distort steady-state numbers.
             for (var i = 0; i < 100_000; i++)
             {
+                _collector.RequestScheduled();
                 _collector.RequestStarted();
                 _collector.RecordResult(true, 5, 1);
             }
@@ -29,6 +30,7 @@ namespace LoadSurge.Benchmarks
         [Benchmark(Baseline = true)]
         public void RequestStarted_Plus_RecordResult()
         {
+            _collector.RequestScheduled();
             _collector.RequestStarted();
             _collector.RecordResult(true, 5.0, 1.0);
         }
@@ -37,6 +39,7 @@ namespace LoadSurge.Benchmarks
         [Benchmark]
         public void RecordResult_Failure()
         {
+            _collector.RequestScheduled();
             _collector.RequestStarted();
             _collector.RecordResult(false, 0, 1.0);
         }

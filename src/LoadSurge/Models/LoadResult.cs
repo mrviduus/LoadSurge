@@ -86,6 +86,17 @@ namespace LoadSurge.Models
 		/// Represents the middle value when all latencies are sorted, less affected by outliers.
 		/// </summary>
 		public double MedianLatency { get; set; }
+
+		/// <summary>
+		/// Gets or sets the average latency of failed operations in milliseconds (timeouts, exceptions,
+		/// false results). Failures are excluded from the latency statistics above; this keeps them visible.
+		/// </summary>
+		public double AverageFailureLatency { get; set; }
+
+		/// <summary>
+		/// Gets or sets the maximum latency of failed operations in milliseconds.
+		/// </summary>
+		public double MaxFailureLatency { get; set; }
 		
 		// Request tracking metrics section - monitors test execution flow
 		
@@ -96,8 +107,8 @@ namespace LoadSurge.Models
 		public int RequestsStarted { get; set; }
 		
 		/// <summary>
-		/// Gets or sets the number of requests currently being processed.
-		/// Indicates concurrent load at the time of measurement.
+		/// Gets or sets the number of requests scheduled but not finished at the end of the test
+		/// (queued on the thread pool or still executing).
 		/// </summary>
 		public int RequestsInFlight { get; set; }
 
