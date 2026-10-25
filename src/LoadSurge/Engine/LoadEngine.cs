@@ -204,6 +204,9 @@ namespace LoadSurge.Engine
             var startedAt = Stopwatch.GetTimestamp();
             bool isSuccess;
             var cancelledByRun = false;
+            // A request whose own timeout fired is a real timeout failure, even if the run was
+            // cancelled before its outcome got recorded.
+            var timedOut = false;
 
             try
             {
@@ -212,17 +215,26 @@ namespace LoadSurge.Engine
                 if (plan.ActionWithCancellation != null)
                 {
                     // Cancellation-aware path: the action observes both run cancellation and
-                    // the per-request timeout, so no work leaks past either signal.
-                    using (var requestCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+                    // the per-request timeout, so no work leaks past either signal. The timeout has
+                    // its own source so it can be told apart from run cancellation.
+                    var timeoutCts = timeout.HasValue ? new CancellationTokenSource(timeout.Value) : null;
+                    using (timeoutCts)
+                    using (var requestCts = CancellationTokenSource.CreateLinkedTokenSource(
+                        cancellationToken, timeoutCts?.Token ?? CancellationToken.None))
                     {
-                        if (timeout.HasValue)
-                            requestCts.CancelAfter(timeout.Value);
-                        isSuccess = await plan.ActionWithCancellation(requestCts.Token).ConfigureAwait(false);
+                        try
+                        {
+                            isSuccess = await plan.ActionWithCancellation(requestCts.Token).ConfigureAwait(false);
+                        }
+                        finally
+                        {
+                            timedOut = timeoutCts?.IsCancellationRequested == true;
+                        }
                     }
 
                     // An action that catches the cancellation and returns false (the recommended
                     // try/catch pattern) was stopped by the harness, not failed by the SUT.
-                    cancelledByRun = !isSuccess && cancellationToken.IsCancellationRequested;
+                    cancelledByRun = !isSuccess && cancellationToken.IsCancellationRequested && !timedOut;
                 }
                 else if (timeout.HasValue)
                 {
@@ -233,11 +245,13 @@ namespace LoadSurge.Engine
                     isSuccess = await plan.Action!().ConfigureAwait(false);
                 }
             }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            catch (OperationCanceledException)
             {
                 // Run cancellation is the harness stopping, not SUT behavior: counted without latency.
+                // Checked in the catch body, not a `when` filter: filters run before the inner
+                // finally that sets timedOut.
                 isSuccess = false;
-                cancelledByRun = true;
+                cancelledByRun = cancellationToken.IsCancellationRequested && !timedOut;
             }
             catch
             {
