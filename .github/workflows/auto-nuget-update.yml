@@ -8,8 +8,8 @@ name: Auto NuGet Update
 # Safety: restore + build + test run BEFORE the push. If anything fails the job stops
 # and nothing is pushed, so a broken bump can never land on main.
 #
-# The push uses GITHUB_TOKEN, so it deliberately does NOT re-trigger ci-cd/publish
-# workflows - a dependency bump must not republish the package.
+# The push uses GITHUB_TOKEN, so it does not re-trigger ci-cd. Publishing is tag-only
+# anyway, so a dependency bump can never republish the package.
 
 on:
   schedule:
@@ -55,7 +55,8 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: '8.0.x'          # .NET 8 runtime for the net8.0 tests
+          global-json-file: global.json    # the pinned SDK, not whatever the runner image has
 
       - name: Install dotnet-outdated
         run: dotnet tool install --global dotnet-outdated-tool || dotnet tool update --global dotnet-outdated-tool

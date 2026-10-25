@@ -30,3 +30,11 @@ dotnet test
 - Follow [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `feat!:` for breaking).
 - Update `CHANGELOG.md` under the appropriate version heading.
 - One logical change per PR.
+
+## Releasing
+
+Publishing to NuGet is tag-only; merges to `main` build the package as a workflow artifact but never publish.
+
+1. Bump `<Version>` in `src/LoadSurge/LoadSurge.csproj`, move `CHANGELOG.md` `[Unreleased]` to the new version, and move `PublicAPI.Unshipped.txt` entries into `PublicAPI.Shipped.txt`.
+2. Merge to `main`.
+3. `git tag vX.Y.Z && git push origin vX.Y.Z` publishes exactly `X.Y.Z` (Trusted Publishing, no API key).
