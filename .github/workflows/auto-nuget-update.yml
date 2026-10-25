@@ -47,13 +47,13 @@ jobs:
 
     steps:
       - name: Checkout main
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           ref: main
           fetch-depth: 0
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '8.0.x'          # .NET 8 runtime for the net8.0 tests
           global-json-file: global.json    # the pinned SDK, not whatever the runner image has
