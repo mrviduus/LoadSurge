@@ -33,8 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `AverageFailureLatency` / `MaxFailureLatency`: an `OperationCanceledException` from run
   cancellation, or an `ActionWithCancellation` returning `false` after the run was cancelled.
   Other exceptions during cancellation, and requests whose own `RequestTimeout` fired, keep their
-  latency. Limitation: a genuine SUT failure
-  returned as `false` at the moment of cancellation is indistinguishable and loses its latency.
+  latency. Limitation: a genuine SUT failure returned as `false` at the moment of cancellation is
+  indistinguishable and loses its latency.
 - Build moves to the .NET 10 SDK (`global.json` pins `10.0.100`). Target frameworks are
   unchanged (`netstandard2.0;net8.0`), so the shipped package is not affected.
 - `dotnet test` opts into the Microsoft.Testing.Platform runner: the .NET 10 SDK dropped the

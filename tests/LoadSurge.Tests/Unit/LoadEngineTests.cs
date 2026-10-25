@@ -16,7 +16,7 @@ namespace LoadSurge.Tests.Unit
     /// </summary>
     public class LoadEngineTests
     {
-        private static LoadExecutionPlan CreatePlan(
+        internal static LoadExecutionPlan CreatePlan(
             string name,
             LoadSettings settings,
             Func<Task<bool>> action)
@@ -213,36 +213,6 @@ namespace LoadSurge.Tests.Unit
         }
 
         [Fact]
-        public async Task RequestTimeout_Fires_For_Legacy_Action_That_Blocks_Synchronously()
-        {
-            // Arrange - blocks before any await; the timeout race used to start only after it (issue #37).
-            var settings = new LoadSettings
-            {
-                Concurrency = 1,
-                Interval = TimeSpan.FromMilliseconds(100),
-                Duration = TimeSpan.FromSeconds(5),
-                MaxIterations = 1,
-                RequestTimeout = TimeSpan.FromMilliseconds(100)
-            };
-            var plan = CreatePlan("blocking-legacy-timeout", settings, () =>
-            {
-                Thread.Sleep(2000);
-                return Task.FromResult(true);
-            });
-            var wallClock = Stopwatch.StartNew();
-
-            // Act
-            var result = await LoadEngine.RunAsync(plan, new LoadWorkerConfiguration(), TestContext.Current.CancellationToken);
-            wallClock.Stop();
-
-            // Assert - timed out as a failure without waiting for the 2s block.
-            Assert.Equal(1, result.Failure);
-            Assert.True(wallClock.Elapsed < TimeSpan.FromMilliseconds(1500),
-                $"Timeout must not wait for the blocking call, took {wallClock.Elapsed}");
-            Assert.True(result.MaxFailureLatency >= 90, $"Failure latency must be recorded, got {result.MaxFailureLatency}");
-        }
-
-        [Fact]
         public async Task Throwing_Legacy_Action_With_Timeout_Is_A_Failure_With_Latency()
         {
             // Arrange - fault after real work, inside the timeout window.
@@ -268,34 +238,6 @@ namespace LoadSurge.Tests.Unit
             Assert.Equal(0, result.RequestsInFlight);
             Assert.True(result.MaxFailureLatency >= 45 && result.MaxFailureLatency < 2000,
                 $"Expected ~50ms failure latency, got {result.MaxFailureLatency}");
-        }
-
-        [Fact]
-        public async Task IncludeQueueTimeInLatency_Adds_Queue_Delay_To_Latency()
-        {
-            // Arrange - sync-blocking actions outnumber pool threads, so later ones queue (issue #39).
-            var iterations = Environment.ProcessorCount * 3;
-            var settings = new LoadSettings
-            {
-                Concurrency = iterations,
-                Interval = TimeSpan.FromMilliseconds(100),
-                Duration = TimeSpan.FromSeconds(5),
-                MaxIterations = iterations,
-                IncludeQueueTimeInLatency = true
-            };
-            var plan = CreatePlan("queue-in-latency", settings, () =>
-            {
-                Thread.Sleep(100);
-                return Task.FromResult(true);
-            });
-
-            // Act
-            var result = await LoadEngine.RunAsync(plan, new LoadWorkerConfiguration(), TestContext.Current.CancellationToken);
-
-            // Assert - the most-queued iteration's latency covers its queue wait plus ~100ms work.
-            Assert.Equal(iterations, result.Success);
-            Assert.True(result.MaxLatency >= result.MaxQueueTime + 90,
-                $"Latency {result.MaxLatency}ms must include queue time {result.MaxQueueTime}ms");
         }
 
         [Fact]
