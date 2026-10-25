@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-10-25
+
 ### Added
 - `LoadResult.AverageFailureLatency` / `MaxFailureLatency` (ms): failures stay out of the
   success latency stats but are no longer invisible; throwing/timed-out iterations record their
