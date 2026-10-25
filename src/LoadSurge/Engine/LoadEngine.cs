@@ -74,6 +74,10 @@ namespace LoadSurge.Engine
                 if (settings.MaxIterations.HasValue)
                     itemsThisBatch = Math.Min(itemsThisBatch, settings.MaxIterations.Value - executed);
 
+                // Queue time is measured from the planned slot, not the spawn moment, so scheduler
+                // lag (late timer wake-up, slow batch spawn) shows up in queue time and latency.
+                var slotTimestamp = runStart + (long)(expectedBatchStartMs / TimestampToMs);
+
                 for (var i = 0; i < itemsThisBatch; i++)
                 {
                     if (maxInFlight.HasValue && collector.InFlight >= maxInFlight.Value)
@@ -82,11 +86,13 @@ namespace LoadSurge.Engine
                         continue;
                     }
 
-                    var scheduledAt = Stopwatch.GetTimestamp();
+                    // Counted before Task.Run so queued-but-not-started iterations hit the cap.
+                    // Only this loop increments in-flight, so check-then-increment cannot overshoot.
+                    collector.RequestScheduled();
                     // CancellationToken.None is deliberate: a spawned iteration must always run
                     // and record its outcome; run cancellation reaches the action via the token
                     // passed into ExecuteOneAsync instead.
-                    _ = Task.Run(() => ExecuteOneAsync(plan, collector, scheduledAt, cancellationToken), CancellationToken.None);
+                    _ = Task.Run(() => ExecuteOneAsync(plan, collector, slotTimestamp, cancellationToken), CancellationToken.None);
                     executed++;
                 }
 
@@ -193,52 +199,109 @@ namespace LoadSurge.Engine
             CancellationToken cancellationToken)
         {
             collector.RequestStarted();
+            // Mutable: the legacy timeout path moves it to when the action really began,
+            // so its extra thread-pool hop counts as queue time, not latency.
             var startedAt = Stopwatch.GetTimestamp();
-            var queueTimeMs = (startedAt - scheduledAt) * TimestampToMs;
+            bool isSuccess;
+            var cancelledByRun = false;
+            // A request whose own timeout fired is a real timeout failure, even if the run was
+            // cancelled before its outcome got recorded.
+            var timedOut = false;
 
             try
             {
                 var timeout = plan.Settings.RequestTimeout;
-                bool isSuccess;
 
                 if (plan.ActionWithCancellation != null)
                 {
                     // Cancellation-aware path: the action observes both run cancellation and
-                    // the per-request timeout, so no work leaks past either signal.
-                    using (var requestCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+                    // the per-request timeout, so no work leaks past either signal. The timeout has
+                    // its own source so it can be told apart from run cancellation.
+                    var timeoutCts = timeout.HasValue ? new CancellationTokenSource(timeout.Value) : null;
+                    using (timeoutCts)
+                    using (var requestCts = CancellationTokenSource.CreateLinkedTokenSource(
+                        cancellationToken, timeoutCts?.Token ?? CancellationToken.None))
                     {
-                        if (timeout.HasValue)
-                            requestCts.CancelAfter(timeout.Value);
-                        isSuccess = await plan.ActionWithCancellation(requestCts.Token).ConfigureAwait(false);
+                        try
+                        {
+                            isSuccess = await plan.ActionWithCancellation(requestCts.Token).ConfigureAwait(false);
+                        }
+                        finally
+                        {
+                            timedOut = timeoutCts?.IsCancellationRequested == true;
+                        }
                     }
+
+                    // An action that catches the cancellation and returns false (the recommended
+                    // try/catch pattern) was stopped by the harness, not failed by the SUT.
+                    cancelledByRun = !isSuccess && cancellationToken.IsCancellationRequested && !timedOut;
+                }
+                else if (timeout.HasValue)
+                {
+                    (isSuccess, startedAt) = await ExecuteWithTimeoutAsync(plan.Action!, timeout.Value).ConfigureAwait(false);
                 }
                 else
                 {
-                    isSuccess = timeout.HasValue
-                        ? await ExecuteWithTimeoutAsync(plan.Action!, timeout.Value).ConfigureAwait(false)
-                        : await plan.Action!().ConfigureAwait(false);
+                    isSuccess = await plan.Action!().ConfigureAwait(false);
                 }
-
-                var latencyMs = (Stopwatch.GetTimestamp() - startedAt) * TimestampToMs;
-                collector.RecordResult(isSuccess, latencyMs, queueTimeMs);
+            }
+            catch (OperationCanceledException)
+            {
+                // Run cancellation is the harness stopping, not SUT behavior: counted without latency.
+                // Checked in the catch body, not a `when` filter: filters run before the inner
+                // finally that sets timedOut.
+                isSuccess = false;
+                cancelledByRun = cancellationToken.IsCancellationRequested && !timedOut;
             }
             catch
             {
-                // A throwing action (including OperationCanceledException on timeout/cancel)
-                // is a failure; latency of failures is excluded from stats anyway.
-                collector.RecordResult(false, 0, queueTimeMs);
+                // Any other throw (including OperationCanceledException on per-request timeout)
+                // is a real failure; its latency feeds the failure-latency stats only.
+                isSuccess = false;
             }
+
+            // Recorded outside the try: a throwing record must never be recorded a second time.
+            if (cancelledByRun)
+                collector.RecordCancelled(QueueTimeMs(scheduledAt, startedAt));
+            else
+                collector.RecordResult(isSuccess, LatencyMs(plan, scheduledAt, startedAt), QueueTimeMs(scheduledAt, startedAt));
         }
+
+        // Task.Delay can wake marginally before the slot, so an iteration may start before
+        // scheduledAt: clamp instead of reporting negative queue time.
+        private static double QueueTimeMs(long scheduledAt, long startedAt) =>
+            Math.Max(0, startedAt - scheduledAt) * TimestampToMs;
+
+        /// <summary>
+        /// Execution latency up to now; with IncludeQueueTimeInLatency (opt-in coordinated-omission
+        /// correction) it is measured from the scheduled slot instead of the execution start
+        /// (or from the start, if it was marginally early, so latency never undercounts execution).
+        /// </summary>
+        private static double LatencyMs(LoadExecutionPlan plan, long scheduledAt, long startedAt) =>
+            (Stopwatch.GetTimestamp() - (plan.Settings.IncludeQueueTimeInLatency ? Math.Min(scheduledAt, startedAt) : startedAt)) * TimestampToMs;
 
         /// <summary>
         /// Races the legacy (token-less) action against a timeout. On timeout the iteration is
         /// recorded as a failure; the underlying task keeps running unobserved, so its eventual
         /// fault is observed to avoid UnobservedTaskException. Prefer ActionWithCancellation,
         /// which aborts the work itself instead of leaking it.
+        /// Returns the outcome and the timestamp at which the action actually began. Never throws:
+        /// a faulted action is a failure.
         /// </summary>
-        private static async Task<bool> ExecuteWithTimeoutAsync(Func<Task<bool>> action, TimeSpan timeout)
+        private static async Task<(bool IsSuccess, long StartedAt)> ExecuteWithTimeoutAsync(Func<Task<bool>> action, TimeSpan timeout)
         {
-            var actionTask = action();
+            // Task.Run, not action(): an action that blocks before its first await would
+            // otherwise run to completion before the timeout race even starts.
+            // The timeout clock starts only once the action really begins, so thread-pool
+            // queueing never turns into a timeout for work that has not run yet.
+            var started = new TaskCompletionSource<long>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var actionTask = Task.Run(() =>
+            {
+                started.TrySetResult(Stopwatch.GetTimestamp());
+                return action();
+            });
+            var startedAt = await started.Task.ConfigureAwait(false);
+
             using (var timeoutCts = new CancellationTokenSource())
             {
                 var delayTask = Task.Delay(timeout, timeoutCts.Token);
@@ -246,7 +309,16 @@ namespace LoadSurge.Engine
                 if (winner == actionTask)
                 {
                     timeoutCts.Cancel(); // release the timer
-                    return await actionTask.ConfigureAwait(false);
+                    try
+                    {
+                        return (await actionTask.ConfigureAwait(false), startedAt);
+                    }
+                    catch
+                    {
+                        // Swallowed here, not in ExecuteOneAsync, so the real start time survives
+                        // and the inner hop wait stays queue time, not latency.
+                        return (false, startedAt);
+                    }
                 }
 
                 _ = actionTask.ContinueWith(
@@ -254,7 +326,7 @@ namespace LoadSurge.Engine
                     CancellationToken.None,
                     TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
                     TaskScheduler.Default);
-                return false;
+                return (false, startedAt);
             }
         }
     }

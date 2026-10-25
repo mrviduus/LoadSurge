@@ -64,12 +64,21 @@ namespace LoadSurge.Models
         
         /// <summary>
         /// Gets or sets the maximum time a single request is allowed to run before being
-        /// counted as a failure. The underlying operation is not forcibly aborted (the action
-        /// receives no cancellation token), but the result is recorded as a timeout failure
-        /// and the request no longer counts toward in-flight tracking.
+        /// counted as a failure. With ActionWithCancellation the token fires on timeout, so the
+        /// work is aborted. With the legacy Action the work is abandoned (keeps running
+        /// unobserved); it is started on an extra thread-pool hop whose wait is reported as
+        /// queue time, and the timeout clock starts only once the action actually begins.
         /// Null (default) means no per-request timeout.
         /// </summary>
         public TimeSpan? RequestTimeout { get; set; }
+
+        /// <summary>
+        /// Gets or sets whether latency is measured from the iteration's scheduled moment instead of
+        /// its execution start, so thread-pool queueing delay is included (coordinated-omission
+        /// correction). Default false: latency covers execution only; queueing is reported
+        /// separately in AvgQueueTime/MaxQueueTime.
+        /// </summary>
+        public bool IncludeQueueTimeInLatency { get; set; }
 
         /// <summary>
         /// Gets the effective graceful stop timeout, applying defaults if not specified.

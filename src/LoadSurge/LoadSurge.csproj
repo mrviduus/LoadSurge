@@ -10,7 +10,7 @@
 
     <!-- Package Metadata -->
     <PackageId>LoadSurge</PackageId>
-    <Version>3.1.0</Version>
+    <Version>3.2.0</Version>
     <Authors>Vasyl Vdovychenko</Authors>
     <Company>Vasyl Vdovychenko</Company>
     <Product>LoadSurge</Product>
@@ -22,7 +22,7 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>icon.png</PackageIcon>
-    <PackageReleaseNotes>Version 3.1.0: Removed Akka.NET - zero external dependencies. Open-workload-model engine (constant arrival rate): task-per-arrival, lock-striped metrics, allocation-free hot path. New: CancellationToken support (returns partial results), ActionWithCancellation, RequestTimeout, MaxInFlight + LoadResult.Dropped, live progress via IProgress&lt;LoadProgress&gt;, input validation. Multi-targets netstandard2.0 and net8.0 (AOT-compatible, trimmable). Obsolete (ignored): Mode, MaxWorkerThreads, ChannelCapacity. See CHANGELOG for details.</PackageReleaseNotes>
+    <PackageReleaseNotes>Version 3.2.0: MaxInFlight counts queued iterations (RequestsInFlight now includes queued work); new AverageFailureLatency/MaxFailureLatency and opt-in IncludeQueueTimeInLatency; queue time measured from the planned slot; legacy Action RequestTimeout fixes. Version 3.1.0: Removed Akka.NET - zero external dependencies. Open-workload-model engine (constant arrival rate): task-per-arrival, lock-striped metrics, allocation-free hot path. New: CancellationToken support (returns partial results), ActionWithCancellation, RequestTimeout, MaxInFlight + LoadResult.Dropped, live progress via IProgress&lt;LoadProgress&gt;, input validation. Multi-targets netstandard2.0 and net8.0 (AOT-compatible, trimmable). Obsolete (ignored): Mode, MaxWorkerThreads, ChannelCapacity. See CHANGELOG for details.</PackageReleaseNotes>
 
     <!-- Build Settings -->
     <IsPackable>true</IsPackable>

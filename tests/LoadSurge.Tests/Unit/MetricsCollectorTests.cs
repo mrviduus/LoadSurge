@@ -18,6 +18,7 @@ namespace LoadSurge.Tests.Unit
             collector.MarkStarted();
             for (var i = 1; i <= 100; i++)
             {
+                collector.RequestScheduled();
                 collector.RequestStarted();
                 collector.RecordResult(true, i);
             }
@@ -41,12 +42,16 @@ namespace LoadSurge.Tests.Unit
             var collector = new MetricsCollector("failures");
             collector.MarkStarted();
 
+            collector.RequestScheduled();
             collector.RequestStarted();
             collector.RecordResult(true, 10);
+            collector.RequestScheduled();
             collector.RequestStarted();
             collector.RecordResult(true, 20);
+            collector.RequestScheduled();
             collector.RequestStarted();
             collector.RecordResult(true, 30);
+            collector.RequestScheduled();
             collector.RequestStarted();
             collector.RecordResult(false, 0); // failure must not pollute latency stats
 
@@ -70,7 +75,10 @@ namespace LoadSurge.Tests.Unit
             collector.MarkStarted();
 
             for (var i = 0; i < 5; i++)
+            {
+                collector.RequestScheduled();
                 collector.RequestStarted();
+            }
             for (var i = 0; i < 3; i++)
                 collector.RecordResult(true, 1);
             collector.RecordDropped();
@@ -87,16 +95,78 @@ namespace LoadSurge.Tests.Unit
         }
 
         [Fact]
+        public void Scheduled_But_Not_Started_Counts_As_InFlight()
+        {
+            // Arrange - queued on the thread pool, not yet executing (issue #36)
+            var collector = new MetricsCollector("queued");
+            collector.RequestScheduled();
+            collector.RequestScheduled();
+
+            // Act & Assert - the MaxInFlight cap must see queued work
+            Assert.Equal(2, collector.InFlight);
+            Assert.Equal(0, collector.BuildResult().RequestsStarted);
+        }
+
+        [Fact]
+        public void Failure_Latency_Is_Aggregated_Separately()
+        {
+            // Arrange (issue #38)
+            var collector = new MetricsCollector("failure-latency");
+            collector.MarkStarted();
+            foreach (var (isSuccess, latency) in new[] { (true, 5.0), (false, 100.0), (false, 300.0) })
+            {
+                collector.RequestScheduled();
+                collector.RequestStarted();
+                collector.RecordResult(isSuccess, latency);
+            }
+
+            // Act
+            var result = collector.BuildResult();
+
+            // Assert - success stats untouched, failures visible on their own
+            Assert.Equal(5, result.MaxLatency);
+            Assert.Equal(200, result.AverageFailureLatency);
+            Assert.Equal(300, result.MaxFailureLatency);
+            Assert.Equal(0, result.RequestsInFlight);
+        }
+
+        [Fact]
+        public void Cancelled_Request_Is_A_Failure_Without_Latency()
+        {
+            // Arrange - one real failure, one ended by run cancellation
+            var collector = new MetricsCollector("cancelled");
+            collector.MarkStarted();
+            collector.RequestScheduled();
+            collector.RequestStarted();
+            collector.RecordResult(false, 100);
+            collector.RequestScheduled();
+            collector.RequestStarted();
+            collector.RecordCancelled();
+
+            // Act
+            var result = collector.BuildResult();
+
+            // Assert - counted as failure, but harness-stop time does not skew failure latency
+            Assert.Equal(2, result.Failure);
+            Assert.Equal(100, result.AverageFailureLatency);
+            Assert.Equal(100, result.MaxFailureLatency);
+            Assert.Equal(0, result.RequestsInFlight);
+        }
+
+        [Fact]
         public void Aggregates_Queue_Times()
         {
             // Arrange
             var collector = new MetricsCollector("queue");
             collector.MarkStarted();
 
+            collector.RequestScheduled();
             collector.RequestStarted();
             collector.RecordResult(true, 1, queueTimeMs: 10);
+            collector.RequestScheduled();
             collector.RequestStarted();
             collector.RecordResult(true, 1, queueTimeMs: 30);
+            collector.RequestScheduled();
             collector.RequestStarted();
             collector.RecordResult(true, 1); // no queue time - excluded from average
 
@@ -157,6 +227,7 @@ namespace LoadSurge.Tests.Unit
                 {
                     for (var i = 0; i < perTask; i++)
                     {
+                        collector.RequestScheduled();
                         collector.RequestStarted();
                         // Half successes with latency 5ms, half failures
                         var success = (i & 1) == 0;
@@ -184,6 +255,7 @@ namespace LoadSurge.Tests.Unit
             // Arrange
             var collector = new MetricsCollector("single");
             collector.MarkStarted();
+            collector.RequestScheduled();
             collector.RequestStarted();
             collector.RecordResult(true, 42);
 
@@ -206,6 +278,7 @@ namespace LoadSurge.Tests.Unit
             collector.MarkStarted();
             for (var i = 0; i < 100; i++)
             {
+                collector.RequestScheduled();
                 collector.RequestStarted();
                 collector.RecordResult(true, 1);
             }

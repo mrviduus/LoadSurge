@@ -86,6 +86,17 @@ namespace LoadSurge.Models
 		/// Represents the middle value when all latencies are sorted, less affected by outliers.
 		/// </summary>
 		public double MedianLatency { get; set; }
+
+		/// <summary>
+		/// Gets or sets the average latency of failed operations in milliseconds (timeouts, exceptions,
+		/// false results). Failures are excluded from the latency statistics above; this keeps them visible.
+		/// </summary>
+		public double AverageFailureLatency { get; set; }
+
+		/// <summary>
+		/// Gets or sets the maximum latency of failed operations in milliseconds.
+		/// </summary>
+		public double MaxFailureLatency { get; set; }
 		
 		// Request tracking metrics section - monitors test execution flow
 		
@@ -96,8 +107,8 @@ namespace LoadSurge.Models
 		public int RequestsStarted { get; set; }
 		
 		/// <summary>
-		/// Gets or sets the number of requests currently being processed.
-		/// Indicates concurrent load at the time of measurement.
+		/// Gets or sets the number of requests scheduled but not finished at the end of the test
+		/// (queued on the thread pool or still executing).
 		/// </summary>
 		public int RequestsInFlight { get; set; }
 
@@ -117,8 +128,10 @@ namespace LoadSurge.Models
 		public double RequestsPerSecond { get; set; }
 		
 		/// <summary>
-		/// Gets or sets the average time requests spent waiting in queue before execution.
-		/// Indicates system saturation and resource contention levels.
+		/// Gets or sets the average time requests spent waiting in queue before execution, from the
+		/// batch's planned slot to execution start (ms). Indicates system saturation and resource contention.
+		/// With a legacy Action and RequestTimeout it also includes one extra thread-pool hop, so
+		/// compare queue times only between runs with the same action type and timeout setting.
 		/// </summary>
 		public double AvgQueueTime { get; set; }
 		

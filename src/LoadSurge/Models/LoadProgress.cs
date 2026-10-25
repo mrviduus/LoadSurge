@@ -25,7 +25,7 @@ namespace LoadSurge.Models
         /// <summary>Gets or sets the failed requests so far.</summary>
         public int Failure { get; set; }
 
-        /// <summary>Gets or sets the requests currently executing.</summary>
+        /// <summary>Gets or sets the requests scheduled but not yet finished (queued on the thread pool or executing).</summary>
         public int InFlight { get; set; }
 
         /// <summary>Gets or sets the iterations dropped by the MaxInFlight cap so far.</summary>

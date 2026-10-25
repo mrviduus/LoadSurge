@@ -16,7 +16,7 @@ namespace LoadSurge.Tests.Unit
     /// </summary>
     public class LoadEngineTests
     {
-        private static LoadExecutionPlan CreatePlan(
+        internal static LoadExecutionPlan CreatePlan(
             string name,
             LoadSettings settings,
             Func<Task<bool>> action)
@@ -180,7 +180,64 @@ namespace LoadSurge.Tests.Unit
             Assert.True(wallClock.Elapsed < TimeSpan.FromSeconds(2),
                 $"StrictDuration must not wait for in-flight, took {wallClock.Elapsed}");
             Assert.True(result.RequestsInFlight > 0, "In-flight requests must be reported");
-            Assert.Equal(result.RequestsStarted, result.Total + result.RequestsInFlight);
+            // Every scheduled iteration is either finished or still in flight (queued or executing).
+            Assert.Equal(result.BatchesCompleted * settings.Concurrency - result.Dropped,
+                result.Total + result.RequestsInFlight);
+        }
+
+        [Fact]
+        public async Task MaxInFlight_Counts_Queued_Iterations_Within_A_Batch()
+        {
+            // Arrange - one batch of 50 is spawned in a tight loop before any task starts (issue #36).
+            // Counting in-flight at execution start let the whole batch through; the cap must hold.
+            var settings = new LoadSettings
+            {
+                Concurrency = 50,
+                Interval = TimeSpan.FromMilliseconds(100),
+                Duration = TimeSpan.FromMilliseconds(300),
+                TerminationMode = TerminationMode.StrictDuration
+            };
+            var plan = CreatePlan("max-in-flight-queued", settings, async () =>
+            {
+                await Task.Delay(1000);
+                return true;
+            });
+            var config = new LoadWorkerConfiguration { MaxInFlight = 5 };
+
+            // Act
+            var result = await LoadEngine.RunAsync(plan, config, TestContext.Current.CancellationToken);
+
+            // Assert - exactly 5 admitted (none finish within 300ms), the rest dropped.
+            Assert.Equal(5, result.RequestsInFlight + result.Total);
+            Assert.Equal(result.BatchesCompleted * 50 - 5, result.Dropped);
+        }
+
+        [Fact]
+        public async Task Throwing_Legacy_Action_With_Timeout_Is_A_Failure_With_Latency()
+        {
+            // Arrange - fault after real work, inside the timeout window.
+            var settings = new LoadSettings
+            {
+                Concurrency = 1,
+                Interval = TimeSpan.FromMilliseconds(100),
+                Duration = TimeSpan.FromSeconds(5),
+                MaxIterations = 3,
+                RequestTimeout = TimeSpan.FromSeconds(2)
+            };
+            var plan = CreatePlan("throwing-legacy-timeout", settings, async () =>
+            {
+                await Task.Delay(50);
+                throw new InvalidOperationException("boom");
+            });
+
+            // Act
+            var result = await LoadEngine.RunAsync(plan, new LoadWorkerConfiguration(), TestContext.Current.CancellationToken);
+
+            // Assert - counted, not crashed; latency is the ~50ms of work, not a timeout.
+            Assert.Equal(3, result.Failure);
+            Assert.Equal(0, result.RequestsInFlight);
+            Assert.True(result.MaxFailureLatency >= 45 && result.MaxFailureLatency < 2000,
+                $"Expected ~50ms failure latency, got {result.MaxFailureLatency}");
         }
 
         [Fact]

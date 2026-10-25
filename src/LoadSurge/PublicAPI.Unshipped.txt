@@ -21,3 +21,9 @@ LoadSurge.Models.LoadProgress.RequestsStarted.get -> int
 LoadSurge.Models.LoadProgress.RequestsStarted.set -> void
 LoadSurge.Models.LoadProgress.Success.get -> int
 LoadSurge.Models.LoadProgress.Success.set -> void
+LoadSurge.Models.LoadResult.AverageFailureLatency.get -> double
+LoadSurge.Models.LoadResult.AverageFailureLatency.set -> void
+LoadSurge.Models.LoadResult.MaxFailureLatency.get -> double
+LoadSurge.Models.LoadResult.MaxFailureLatency.set -> void
+LoadSurge.Models.LoadSettings.IncludeQueueTimeInLatency.get -> bool
+LoadSurge.Models.LoadSettings.IncludeQueueTimeInLatency.set -> void
