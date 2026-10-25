@@ -23,10 +23,5 @@
   <ItemGroup Label="Development and Build Tools">
     <!-- Public API surface tracking - build fails on accidental breaking changes -->
     <PackageVersion Include="Microsoft.CodeAnalysis.PublicApiAnalyzers" Version="5.6.0" />
-    <!-- Source Link for GitHub - Enables debugging of NuGet package source code -->
-    <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.402">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
-    </PackageVersion>
   </ItemGroup>
 </Project>
