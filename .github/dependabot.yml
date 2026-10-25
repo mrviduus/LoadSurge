@@ -1,0 +1,11 @@
+# GitHub Actions only: NuGet packages are bumped by .github/workflows/auto-nuget-update.yml.
+# One grouped PR per month keeps actions off deprecated runtimes (e.g. Node 20) without noise.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      github-actions:
+        patterns: ["*"]

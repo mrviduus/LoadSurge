@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   removed; the .NET 8+ SDK provides Source Link built in (symbols still map to GitHub sources).
 
 ### Changed
+- NuGet publishing is tag-only again (`git tag vX.Y.Z` publishes exactly `X.Y.Z`). Pushes to
+  `main` no longer publish 4-part `<version>.<run>` packages such as `3.2.0.105`.
 - `RequestsInFlight` / `LoadProgress.InFlight` include iterations queued on the thread pool but
   not yet started (#36).
 - `AvgQueueTime` / `MaxQueueTime` are measured from the batch's planned slot, so scheduler lag
