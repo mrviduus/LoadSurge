@@ -5,6 +5,8 @@
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
     <EnablePackageVersionOverride>false</EnablePackageVersionOverride>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <!-- Audit transitive packages too (default is direct only): this is the repo's vulnerability scan -->
+    <NuGetAuditMode>all</NuGetAuditMode>
   </PropertyGroup>
   <!-- Package Version Management -->
   <ItemGroup Label="Testing Dependencies">

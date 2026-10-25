@@ -35,6 +35,7 @@ dotnet test
 
 Publishing to NuGet is tag-only; merges to `main` build the package as a workflow artifact but never publish.
 
-1. Bump `<Version>` in `src/LoadSurge/LoadSurge.csproj`, move `CHANGELOG.md` `[Unreleased]` to the new version, and move `PublicAPI.Unshipped.txt` entries into `PublicAPI.Shipped.txt`.
+1. Bump `<Version>` and update `<PackageReleaseNotes>` (shown on nuget.org) in `src/LoadSurge/LoadSurge.csproj`, move `CHANGELOG.md` `[Unreleased]` to the new version, and move `PublicAPI.Unshipped.txt` entries into `PublicAPI.Shipped.txt`.
 2. Merge to `main`.
 3. `git tag vX.Y.Z && git push origin vX.Y.Z` publishes exactly `X.Y.Z` (Trusted Publishing, no API key).
+   CI refuses to publish if the tag does not match `<Version>` or the tagged commit is not on `main`.

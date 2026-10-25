@@ -15,9 +15,11 @@ on:
 permissions:
   contents: read
 
-# A new push to a PR cancels its superseded run; main and tag runs always finish.
+# A new push to a PR cancels its superseded run. Main and tag runs get a unique group
+# (run_id): GitHub keeps only one pending run per group, so a shared group would silently
+# drop queued main runs during quick successive merges.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
@@ -49,7 +51,8 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-nuget-
 
-    # Restore also runs NuGetAudit: known-vulnerable packages surface here as warnings.
+    # Restore also runs NuGetAudit (NuGetAuditMode=all in Directory.Packages.props):
+    # known-vulnerable direct and transitive packages surface here as warnings.
     - name: Restore dependencies
       run: dotnet restore
 
@@ -94,6 +97,8 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v5
+      with:
+        fetch-depth: 0  # origin/main history, for the tag-is-on-main release guard
 
     - name: Setup .NET
       uses: actions/setup-dotnet@v5
@@ -103,11 +108,21 @@ jobs:
 
     - name: Extract version
       run: |
+        BASE_VERSION=$(sed -n 's|.*<Version>\(.*\)</Version>.*|\1|p' src/LoadSurge/LoadSurge.csproj)
         if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
           VERSION="${GITHUB_REF#refs/tags/v}"
+          # A NuGet version is permanent, so a release must be deliberate: the tag must match
+          # the csproj (release notes included) and point at reviewed code already on main.
+          if [[ "$VERSION" != "$BASE_VERSION" ]]; then
+            echo "::error::Tag v$VERSION does not match csproj <Version>$BASE_VERSION</Version>. Bump the csproj on main first."
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::Tagged commit $GITHUB_SHA is not on main. Merge the PR first, then tag."
+            exit 1
+          fi
         else
           # Main builds are artifacts only: base version from the csproj + run number
-          BASE_VERSION=$(sed -n 's|.*<Version>\(.*\)</Version>.*|\1|p' src/LoadSurge/LoadSurge.csproj)
           VERSION="${BASE_VERSION}.${{ github.run_number }}"
         fi
         echo "VERSION=$VERSION" >> $GITHUB_ENV
