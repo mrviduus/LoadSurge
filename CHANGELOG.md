@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- The package no longer declares a dependency on `Microsoft.SourceLink.GitHub`: `PrivateAssets`
+  on a central `PackageVersion` is ignored, so it leaked to every consumer. The reference is
+  removed; the .NET 8+ SDK provides Source Link built in (symbols still map to GitHub sources).
+
 ### Changed
 - Build moves to the .NET 10 SDK (`global.json` pins `10.0.100`). Target frameworks are
   unchanged (`netstandard2.0;net8.0`), so the shipped package is not affected.
