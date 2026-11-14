@@ -11,12 +11,12 @@
   <!-- Package Version Management -->
   <ItemGroup Label="Testing Dependencies">
     <!-- xUnit v3 Core Dependencies -->
-    <PackageVersion Include="xunit.v3" Version="4.0.2" />
+    <PackageVersion Include="xunit.v3" Version="4.0.3" />
     <!-- Microsoft Testing Platform -->
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.12.0" />
     <!-- MTP report extensions: dotnet test on the .NET 10 SDK runs Microsoft.Testing.Platform,
          where the report-trx and coverage options replace VSTest's logger and collect options. -->
-    <PackageVersion Include="Microsoft.Testing.Extensions.TrxReport" Version="2.5.2" />
+    <PackageVersion Include="Microsoft.Testing.Extensions.TrxReport" Version="2.5.3" />
     <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.12.0" />
   </ItemGroup>
   <ItemGroup Label="Benchmarking">
